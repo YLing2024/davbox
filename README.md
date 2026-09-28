@@ -35,8 +35,18 @@ web/            前端源码（Vite + React + TS）
 docs/           需求与选型文档
 ```
 
+## 运行
+
+```
+make build            # 先构建前端，再编译出单二进制 ./davbox
+./davbox -addr 127.0.0.1:18900 -data ./data
+```
+
+首次启动会在数据目录生成 `admin.json`、`admin-password.txt`、`secret.key`，并在 stdout 打印一次管理员初始口令。
+管理页 `/admin`，文件页 `/`；App 的 WebDAV 地址填 `http(s)://<站点>/<应用名>`。
+
 ## 状态
 
-阶段一：底盘（账号隔离 + 六动词 WebDAV）—— 需求已定稿，待实现
-阶段二：admin 页 + client 页
-阶段三（可选）：配额、用量统计、只读账号、分享链接
+阶段一：底盘（账号隔离 + 六动词 WebDAV）—— 已完成
+阶段二：admin 页 + client 页 —— 已完成
+阶段三（可选）：配额、用量趋势、分享链接
