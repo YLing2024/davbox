@@ -3,6 +3,7 @@ package server
 import (
 	"log"
 	"net/http"
+	"path/filepath"
 
 	"golang.org/x/net/webdav"
 
@@ -16,6 +17,12 @@ func isWriteMethod(method string) bool {
 		return true
 	}
 	return false
+}
+
+// davFSFor 为账号构造带死属性持久化的文件系统。
+// sidecar 放在账号 root 之外，保证不会出现在客户端可见目录里。
+func (s *Server) davFSFor(acct account.Account) webdav.FileSystem {
+	return newDeadPropFS(acct.Root, filepath.Join(s.dataDir, "davprops", acct.User))
 }
 
 func writeAuthChallenge(w http.ResponseWriter) {
@@ -61,7 +68,7 @@ func (s *Server) handleDAV(w http.ResponseWriter, r *http.Request, user string) 
 
 	h := &webdav.Handler{
 		Prefix:     "/" + user + "/",
-		FileSystem: webdav.Dir(acct.Root),
+		FileSystem: s.davFSFor(acct),
 		LockSystem: s.lockSystem(user),
 		Logger: func(req *http.Request, err error) {
 			if err != nil {
@@ -77,7 +84,7 @@ func (s *Server) handleDAV(w http.ResponseWriter, r *http.Request, user string) 
 func (s *Server) davHandlerFor(acct account.Account) http.Handler {
 	return &webdav.Handler{
 		Prefix:     "/" + acct.User + "/",
-		FileSystem: webdav.Dir(acct.Root),
+		FileSystem: s.davFSFor(acct),
 		LockSystem: s.lockSystem(acct.User),
 	}
 }
