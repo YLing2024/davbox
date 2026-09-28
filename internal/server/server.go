@@ -75,6 +75,9 @@ func (s *Server) route(w http.ResponseWriter, r *http.Request) {
 				s.handleDAV(w, r, seg)
 				return
 			}
+			// 账号不存在时返回与未认证一致的 401，避免泄漏账号是否存在。
+			writeAuthChallenge(w)
+			return
 		}
 		writeError(w, http.StatusNotFound, "未找到")
 	}
