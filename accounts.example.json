@@ -1,0 +1,10 @@
+[
+  {
+    "user": "demo",
+    "pass": "REPLACE_ME",
+    "root": "",
+    "readonly": false,
+    "disabled": false,
+    "note": "示例配置：root 留空表示使用 <数据目录>/data/demo。真实账号请由 admin 页创建。"
+  }
+]
