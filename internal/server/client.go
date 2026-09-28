@@ -102,6 +102,13 @@ func (s *Server) handleClient(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch {
+	case r.URL.Path == "/api/client/me":
+		if r.Method != http.MethodGet {
+			writeError(w, http.StatusMethodNotAllowed, "方法不允许")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"user": acct.User, "readonly": acct.Readonly})
+
 	case r.URL.Path == "/api/client/list":
 		if r.Method != http.MethodGet {
 			writeError(w, http.StatusMethodNotAllowed, "方法不允许")
