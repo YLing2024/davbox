@@ -1,0 +1,17 @@
+# 产物
+/davbox
+davbox
+*.exe
+
+# 前端
+web/node_modules/
+web/dist/
+
+# 本地配置（不放真实数据）
+accounts.local.json
+
+# 编辑与系统
+.DS_Store
+*.swp
+.idea/
+.vscode/
