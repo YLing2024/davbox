@@ -73,12 +73,14 @@
 - 认证：HTTP Basic，口令用 `crypto/subtle.ConstantTimeCompare`
   - 未认证/失败 → `401` + **必须**响应头 `WWW-Authenticate: Basic realm="davbox"`
   - 账号 `disabled: true` → 同 401（不要泄漏账号是否存在）
+  - 请求首段账号不存在 → 同 401（不要泄漏账号是否存在）
 - 请求经过 `golang.org/x/net/webdav` 的 `Handler`：
   - `Prefix` 设为 `/<user>/`（前缀剥离由它负责）
-  - `FileSystem` = 该账号 root 的 `webdav.Dir`
+  - `FileSystem` = 该账号 root 的 `webdav.Dir`，外层包装为支持死属性持久化的实现
+    （sidecar 存在账号 root 之外，不出现在客户端可见目录里）
   - `LockSystem` = `webdav.NewMemLS()`
   - `Logger` 只记错误，**绝不**记录 `Authorization` 头或口令
-- `readonly: true` 的账号：`PUT` / `DELETE` / `MKCOL` / `MOVE` / `COPY` / `PROPPATCH` → `403`；`GET` / `HEAD` / `PROPFIND` / `OPTIONS` 正常
+- `readonly: true` 的账号：`PUT` / `DELETE` / `MKCOL` / `MOVE` / `COPY` / `PROPPATCH` / `LOCK` / `UNLOCK` → `403`；`GET` / `HEAD` / `PROPFIND` / `OPTIONS` 正常
 - 六动词必须真能用：`GET` `PUT` `DELETE` `MKCOL` `MOVE` `PROPFIND`（`Depth: 0` 与 `Depth: 1` 都要正确返回 `207`）
 - 路径安全：除库自身防护外，处理器入口再显式校验一次请求路径，拒绝含 `..`、`%2e`（大小写）、`\`、空字节的路径 → `400`
 
@@ -109,6 +111,7 @@
 |---|---|---|
 | POST | `/api/client/login` | 体 `{"user":"...","pass":"..."}` → 设 cookie |
 | POST | `/api/client/logout` | 清 cookie |
+| GET | `/api/client/me` | 返回会话账号 `{user, readonly}`（不含口令） |
 | GET | `/api/client/list?path=/a/b` | 目录列表：`[{name,isDir,size,mtime}]`，按「目录优先 + 名称」排序 |
 | GET | `/api/client/raw/{path}` | 下载（支持 `Range`）|
 | PUT | `/api/client/raw/{path}` | 上传（流式；父目录不存在 → 400） |
