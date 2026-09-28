@@ -11,9 +11,10 @@ import (
 )
 
 // isWriteMethod 列出只读账号需要拒绝的动词。
+// LOCK/UNLOCK 也会改变服务端状态（并可能创建资源），一并阻断。
 func isWriteMethod(method string) bool {
 	switch method {
-	case http.MethodPut, http.MethodDelete, "MKCOL", "MOVE", "COPY", "PROPPATCH":
+	case http.MethodPut, http.MethodDelete, "MKCOL", "MOVE", "COPY", "PROPPATCH", "LOCK", "UNLOCK":
 		return true
 	}
 	return false
