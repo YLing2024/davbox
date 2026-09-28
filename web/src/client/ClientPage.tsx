@@ -43,6 +43,12 @@ export function ClientPage() {
       setEntries(list)
       setPath(target)
       setAuthed(true)
+      try {
+        const me = await clientApi.me()
+        setUser(me.user)
+      } catch {
+        /* 保持已有账号信息 */
+      }
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setAuthed(false)
@@ -194,6 +200,7 @@ export function ClientPage() {
       <header className="masthead">
         <span className="wordmark">davbox</span>
         <span className="tag">文件</span>
+        {user ? <span className="who">{user}</span> : null}
         <span className="spacer" />
         <button type="button" className="btn ghost" onClick={logout}>
           <IconLogout />

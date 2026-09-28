@@ -90,6 +90,7 @@ export const clientApi = {
   login: (user: string, pass: string) =>
     request<{ ok: boolean; user: string }>('POST', '/api/client/login', { user, pass }),
   logout: () => request<{ ok: boolean }>('POST', '/api/client/logout'),
+  me: () => request<{ user: string; readonly: boolean }>('GET', '/api/client/me'),
   list: (path: string) => request<Entry[]>('GET', `/api/client/list?path=${encodeURIComponent(path)}`),
   mkdir: (path: string) => request<{ ok: boolean }>('POST', '/api/client/mkdir', { path }),
   rename: (from: string, to: string) => request<{ ok: boolean }>('POST', '/api/client/rename', { from, to }),

@@ -86,6 +86,12 @@ input {
   letter-spacing: 0.08em;
 }
 
+.who {
+  font-size: 13px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
 .spacer {
   flex: 1;
 }
