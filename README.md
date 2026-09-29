@@ -45,6 +45,50 @@ make build            # 先构建前端，再编译出单二进制 ./davbox
 首次启动会在数据目录生成 `admin.json`、`admin-password.txt`、`secret.key`，并在 stdout 打印一次管理员初始口令。
 管理页 `/admin`，文件页 `/`；App 的 WebDAV 地址填 `http(s)://<站点>/<应用名>`。
 
+## 认证模式
+
+管理端支持两种认证模式，由环境变量 `AUTH_MODE` 选择：
+
+| 值 | 行为 |
+|---|---|
+| `builtin`（**默认**） | davbox 自带管理员口令：`/admin` 输入口令登录，使用内置 cookie 会话。开箱即用 |
+| `sso` | 关闭自带口令，管理接口只认网关注入的 `X-Auth-User`；缺失或为空 → `401 JSON` |
+
+```
+AUTH_MODE=builtin ./davbox -addr 127.0.0.1:18900 -data ./data   # 默认，可省略
+AUTH_MODE=sso     ./davbox -addr 127.0.0.1:18900 -data ./data
+```
+
+`builtin` 是默认值，行为与自带账号版本完全一致；`sso` 模式下启动日志会打印一行提示。
+
+### sso 模式的安全前提
+
+davbox **不解析也不校验** `X-Auth-User`（不验签、不看 JWT 或 cookie），它把该请求头当作「已经过网关认证」的事实。这个信任成立的前提是两条同时满足：
+
+1. davbox 只监听回环地址（如 `127.0.0.1`），外部无法绕过网关直达；
+2. 所有外部流量先经过网关，由网关完成登录，并**剥离客户端伪造的同名请求头**后再注入真实的 `X-Auth-User`。
+
+只满足其一都不够：若 davbox 直接对公网暴露，任何人都能伪造 `X-Auth-User` 绕过认证。
+
+### 接线示意（nginx + 网关）
+
+```
+浏览器 ──► nginx(example.com) ──► auth-gateway ──► davbox(127.0.0.1:18900)
+             │  /_auth/*        登录与退出由网关处理
+             │  其余请求        剥离外部 X-Auth-User → 注入认证后的 X-Auth-User → 反代到 davbox
+             └─ 只反代回环，davbox 不对公网直接暴露
+```
+
+- 登录：`/_auth/login?next=<当前路径>`
+- 退出：`/_auth/logout`
+- 管理接口在 `sso` 下未带 `X-Auth-User` 时统一返回 `401 JSON`（不重定向、不下发 cookie）
+
+### 两种模式都不受影响的部分
+
+- WebDAV 数据面 `/<账号名>/...`：始终用应用账号 + HTTP Basic，与 `AUTH_MODE` 无关
+- 客户端接口 `/api/client/*` 与静态资源 `/assets/*`
+- 应用账号的增删改查在两种模式下都需要管理端身份：`builtin` 用管理员口令，`sso` 用 `X-Auth-User`
+
 ## 状态
 
 阶段一：底盘（账号隔离 + 六动词 WebDAV）—— 已完成
