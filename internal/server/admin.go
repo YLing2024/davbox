@@ -53,6 +53,24 @@ func (s *Server) adminSession(r *http.Request) (auth.Session, bool) {
 	return sess, true
 }
 
+// adminAuth 按当前认证模式判断管理端身份。
+// builtin：校验会话 cookie，用户标识为空串。
+// sso：只认网关注入的 X-Auth-User，缺失或空白即未认证（绝不回退到 cookie）。
+func (s *Server) adminAuth(r *http.Request) (string, bool) {
+	if s.authMode.IsSSO() {
+		user := strings.TrimSpace(r.Header.Get(auth.HeaderAuthUser))
+		if user == "" {
+			return "", false
+		}
+		return user, true
+	}
+	sess, ok := s.adminSession(r)
+	if !ok {
+		return "", false
+	}
+	return sess.User, true
+}
+
 type accountView struct {
 	User      string `json:"user"`
 	Root      string `json:"root"`
@@ -101,6 +119,22 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		parts = strings.Split(rest, "/")
 	}
 
+	// 认证模式查询：前端在未登录时也要知道当前模式，故不鉴权。
+	if len(parts) == 1 && parts[0] == "mode" {
+		if r.Method != http.MethodGet {
+			writeError(w, http.StatusMethodNotAllowed, "方法不允许")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"mode": string(s.authMode)})
+		return
+	}
+
+	// SSO 模式不提供自带口令的登录/退出，交由网关的 /_auth/* 处理。
+	if s.authMode.IsSSO() && len(parts) == 1 && (parts[0] == "login" || parts[0] == "logout") {
+		writeError(w, http.StatusNotFound, "未找到")
+		return
+	}
+
 	if len(parts) == 1 && parts[0] == "login" {
 		if r.Method != http.MethodPost {
 			writeError(w, http.StatusMethodNotAllowed, "方法不允许")
@@ -110,7 +144,7 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, ok := s.adminSession(r); !ok {
+	if _, ok := s.adminAuth(r); !ok {
 		writeError(w, http.StatusUnauthorized, "未登录")
 		return
 	}
