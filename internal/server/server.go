@@ -21,6 +21,8 @@ type Config struct {
 	Store     *account.Store
 	AdminHash []byte
 	Signer    *auth.Signer
+	// AuthMode 是管理端认证模式；零值按 builtin 处理。
+	AuthMode auth.Mode
 }
 
 // Server 持有全部运行期状态。
@@ -29,6 +31,7 @@ type Server struct {
 	store     *account.Store
 	adminHash []byte
 	signer    *auth.Signer
+	authMode  auth.Mode
 
 	davMu sync.Mutex
 	locks map[string]webdav.LockSystem
@@ -43,6 +46,7 @@ func New(cfg Config) *Server {
 		store:     cfg.Store,
 		adminHash: cfg.AdminHash,
 		signer:    cfg.Signer,
+		authMode:  cfg.AuthMode.Normalize(),
 		locks:     map[string]webdav.LockSystem{},
 		usage:     newUsageCache(30 * time.Second),
 	}
