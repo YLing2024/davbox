@@ -19,7 +19,7 @@
 - **只读账号**：写动词一律 `403`，读正常
 - **协议用官方实现**：`golang.org/x/net/webdav`（含 `LOCK` / `UNLOCK` / `COPY` / `MOVE` / 死属性持久化），不自研协议
 - **单二进制交付**：前端 `//go:embed` 打进二进制，无运行时、无数据库、无中间件依赖
-- **认证可切换**：默认自带管理员口令（开箱即用），也可关掉、改接你自己的 SSO 网关（见下）
+- **认证可切换**：默认自带管理员口令，开箱即用；也可以关掉自带口令（见下）
 
 ## 快速开始
 
@@ -54,47 +54,26 @@ docs/           需求、选型与验收记录
 
 ## 认证模式
 
-管理端支持两种认证模式，由环境变量 `AUTH_MODE` 选择：
+管理端认证由环境变量 `AUTH_MODE` 选择，两个取值：
 
 | 值 | 行为 |
 |---|---|
-| `builtin`（**默认**） | davbox 自带管理员口令：`/admin` 输入口令登录，使用内置 cookie 会话。开箱即用 |
-| `sso` | 关闭自带口令，管理接口只认网关注入的 `X-Auth-User`；缺失或为空 → `401 JSON` |
+| `builtin`（**默认**） | 自带管理员口令：`/admin` 输入口令登录，使用内置 cookie 会话 |
+| `sso` | 关掉自带口令，管理端身份改由 `X-Auth-User` 请求头决定；缺失或为空 → `401 JSON` |
 
 ```
 AUTH_MODE=builtin ./davbox -addr 127.0.0.1:18900 -data ./data   # 默认，可省略
 AUTH_MODE=sso     ./davbox -addr 127.0.0.1:18900 -data ./data
 ```
 
-`builtin` 是默认值，行为与自带账号版本完全一致；`sso` 模式下启动日志会打印一行提示。
-
-### sso 模式的安全前提
-
-davbox **不解析也不校验** `X-Auth-User`（不验签、不看 JWT 或 cookie），它把该请求头当作「已经过网关认证」的事实。这个信任成立的前提是两条同时满足：
-
-1. davbox 只监听回环地址（如 `127.0.0.1`），外部无法绕过网关直达；
-2. 所有外部流量先经过网关，由网关完成登录，并**剥离客户端伪造的同名请求头**后再注入真实的 `X-Auth-User`。
-
-只满足其一都不够：若 davbox 直接对公网暴露，任何人都能伪造 `X-Auth-User` 绕过认证。
-
-### 接线示意（nginx + 网关）
-
-```
-浏览器 ──► nginx(example.com) ──► auth-gateway ──► davbox(127.0.0.1:18900)
-             │  /_auth/*        登录与退出由网关处理
-             │  其余请求        剥离外部 X-Auth-User → 注入认证后的 X-Auth-User → 反代到 davbox
-             └─ 只反代回环，davbox 不对公网直接暴露
-```
-
-- 登录：`/_auth/login?next=<当前路径>`
-- 退出：`/_auth/logout`
-- 管理接口在 `sso` 下未带 `X-Auth-User` 时统一返回 `401 JSON`（不重定向、不下发 cookie）
+`builtin` 是默认值，开箱即用。`sso` 只是「把自带口令关掉」的开关：前面用什么做认证、由谁注入 `X-Auth-User`，
+随你自己的部署（davbox 建议只监听回环，公网入口交给反代）。
 
 ### 两种模式都不受影响的部分
 
 - WebDAV 数据面 `/<账号名>/...`：始终用应用账号 + HTTP Basic，与 `AUTH_MODE` 无关
 - 客户端接口 `/api/client/*` 与静态资源 `/assets/*`
-- 应用账号的增删改查在两种模式下都需要管理端身份：`builtin` 用管理员口令，`sso` 用 `X-Auth-User`
+- 应用账号的增删改查在两种模式下都需要管理端身份
 
 ## 部署（nginx 反代）
 
@@ -118,8 +97,8 @@ server {
 }
 ```
 
-接 `sso` 模式时再额外做两件事：把 `/_auth/`、`/admin`、`/api/admin/` 指向网关（`/_auth/*` 的 location 必须排在受保护 location 之前），
-WebDAV 数据面与 `/assets/*` 直连 davbox —— 协议端点必须保持自带 Basic 认证，否则 App 无法同步。
+接 `sso` 时把 `/admin`、`/api/admin/` 交给你的认证入口，WebDAV 数据面与 `/assets/*` 直连 davbox ——
+协议端点保持自带 Basic 认证，否则 App 无法同步。
 
 ## 状态
 
