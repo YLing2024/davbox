@@ -20,35 +20,34 @@
 
 ## 位置与环境
 
-- 代码：`./`（git 仓库 ✓）
+- 代码：本仓库
 - 端口规划：开发/测试 `127.0.0.1:18900`
-- 数据目录规划：`./data/`（账号 JSON + 各应用目录 + 审计 JSONL）
-- 编译：Go 1.24.4（`Go 安装目录`）✓ 模块缓存 `~/go/pkg/mod`（x/net v0.59.0 已预热 ✓）
-- 前端构建：Node v26 / Bun 1.4.2 ✓
+- 数据目录：`./data`（账号 JSON + 各应用目录 + 审计 JSONL）
+- 编译：Go 1.24+ ✓
+- 前端构建：Node v26 ✓
 
 ## 技术选型
 
 见 `docs/DECISIONS.md`（含全部被否方案与当时的实测证据）。
 要点：Go + `golang.org/x/net/webdav`（官方，7543 行实现 / 4275 行测试）+ React/Vite/TS 内嵌 + JSON 账号 + 单静态二进制。
 
-## 部署规划（未执行）
+## 部署
 
-- systemd unit 常驻（干活留 systemd；检查归 Hermes 巡检 ✓）
-- nginx 反代 + TLS：新子域**成对做**（主域块 + 镜像域块 + 逐名证书，`certbot certonly` 绝不改配置 ✓）
-- 认证：自带账号体系 → **不叠 SSO** ✓（与 memos / SiYuan 同一约定）
-- 与 SFTPGo 的关系：davbox 上线验证通过后再决定是否拆掉 SFTPGo（目前 SFTPGo 无真实业务在用）
+- systemd unit 常驻 ✓（已上线）
+- nginx 反代 + TLS ✓（certbot 签发证书）
+- 认证：**自带账号体系（默认）** ✓；管理端可选接自有 SSO 网关（`AUTH_MODE=sso`），协议端点永远保留自带账号 ✓
 
 ## 协作约定
 
-- 编码任务一律委托 opencode ✓（需求文档在 `docs/REQUIREMENTS.md`；Hermes 负责诊断/验收/部署）
-- 委托命令必须：`set -a; . 外部环境变量; set +a` 且只能用 opencode 自己的 key ✓
-- 需求文档必须写明"不许 systemctl / pkill / 动生产端口" ✓
+- 需求文档在 `docs/REQUIREMENTS.md`，验收标准在 `docs/SPEC.md` ✓
+- 需求文档写明改动范围与边界（不动生产进程与端口）✓
 - 不硬编码任何域名与 IP ✓（一律环境变量或配置注入）
 - 文案：中文、唯美克制、禁 emoji / 鸡汤 / AI 腔 ✓
 
 ## 进度
 
 - [x] 技术选型 + 命名 + 建项目（2026-09-28）
-- [ ] 阶段一：底盘（账号隔离 + 六动词 WebDAV）→ 委托 opencode
-- [ ] 阶段二：admin 页 + client 页
-- [ ] 阶段三（可选）：配额 / 用量 / 分享
+- [x] 阶段一：底盘（账号隔离 + 六动词 WebDAV）
+- [x] 阶段二：admin 页 + client 页
+- [x] 部署：systemd + nginx + TLS
+- [ ] 阶段三（可选）：配额 / 用量 / 分享链接
