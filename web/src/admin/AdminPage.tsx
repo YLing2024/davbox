@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { adminApi, ApiError, type AccountView, type ConnInfo } from '../api'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { adminApi, ApiError, type AccountView, type AuthMode, type ConnInfo } from '../api'
 import { formatSize } from '../format'
 import {
   IconCopy,
@@ -34,6 +34,12 @@ async function copyText(text: string): Promise<boolean> {
 
 function connText(conn: ConnInfo): string {
   return `地址：${conn.url}\n用户名：${conn.user}\n口令：${conn.pass}`
+}
+
+// SSO 模式下 401 统一交给网关登录页处理。
+function redirectToGatewayLogin() {
+  const next = window.location.pathname + window.location.search
+  window.location.href = `/_auth/login?next=${encodeURIComponent(next)}`
 }
 
 function Switch({
@@ -98,6 +104,7 @@ function ConnModal({ conn, onClose }: { conn: ConnInfo; onClose: () => void }) {
 }
 
 export function AdminPage() {
+  const [mode, setMode] = useState<AuthMode | null>(null)
   const [ready, setReady] = useState(false)
   const [authed, setAuthed] = useState(false)
   const [password, setPassword] = useState('')
@@ -108,6 +115,15 @@ export function AdminPage() {
   const [showNew, setShowNew] = useState(false)
   const [newUser, setNewUser] = useState('')
   const [newReadonly, setNewReadonly] = useState(false)
+  const modeRef = useRef<AuthMode>('builtin')
+
+  const handleUnauthorized = useCallback(() => {
+    if (modeRef.current === 'sso') {
+      redirectToGatewayLogin()
+      return
+    }
+    setAuthed(false)
+  }, [])
 
   const load = useCallback(async () => {
     try {
@@ -116,17 +132,33 @@ export function AdminPage() {
       setAuthed(true)
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        setAuthed(false)
+        handleUnauthorized()
       } else {
         setError(err instanceof Error ? err.message : '加载失败')
       }
     } finally {
       setReady(true)
     }
-  }, [])
+  }, [handleUnauthorized])
 
   useEffect(() => {
-    void load()
+    let alive = true
+    void (async () => {
+      let detected: AuthMode = 'builtin'
+      try {
+        const info = await adminApi.mode()
+        if (info.mode === 'sso') detected = 'sso'
+      } catch {
+        /* 取不到模式时按 builtin 处理，保持默认行为 */
+      }
+      if (!alive) return
+      modeRef.current = detected
+      setMode(detected)
+      await load()
+    })()
+    return () => {
+      alive = false
+    }
   }, [load])
 
   const run = async (fn: () => Promise<void>) => {
@@ -136,7 +168,7 @@ export function AdminPage() {
       await fn()
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        setAuthed(false)
+        handleUnauthorized()
       } else {
         setError(err instanceof Error ? err.message : '操作失败')
       }
@@ -155,6 +187,10 @@ export function AdminPage() {
   }
 
   const logout = () => {
+    if (mode === 'sso') {
+      window.location.href = '/_auth/logout'
+      return
+    }
     void run(async () => {
       await adminApi.logout()
       setAuthed(false)
@@ -206,7 +242,7 @@ export function AdminPage() {
     })
   }
 
-  if (!ready) {
+  if (!ready || mode === null) {
     return (
       <div className="page">
         <div className="center-note">加载中</div>
@@ -215,6 +251,14 @@ export function AdminPage() {
   }
 
   if (!authed) {
+    // SSO 模式不显示口令输入框；未认证时已跳转网关登录页。
+    if (mode === 'sso') {
+      return (
+        <div className="page">
+          <div className="center-note">正在跳转登录</div>
+        </div>
+      )
+    }
     return (
       <div className="page narrow">
         <header className="masthead">

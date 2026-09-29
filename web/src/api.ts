@@ -14,6 +14,8 @@ export interface ConnInfo {
   pass: string
 }
 
+export type AuthMode = 'builtin' | 'sso'
+
 export interface Entry {
   name: string
   isDir: boolean
@@ -58,6 +60,7 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
 export { ApiError }
 
 export const adminApi = {
+  mode: () => request<{ mode: AuthMode }>('GET', '/api/admin/mode'),
   login: (password: string) => request<{ ok: boolean }>('POST', '/api/admin/login', { password }),
   logout: () => request<{ ok: boolean }>('POST', '/api/admin/logout'),
   list: () => request<AccountView[]>('GET', '/api/admin/accounts'),
