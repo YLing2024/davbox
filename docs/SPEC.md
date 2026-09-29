@@ -1,4 +1,4 @@
-# davbox · 实现规格（交付给 opencode 执行）
+# davbox · 实现规格
 
 > 本文件是**权威施工图**。与 `docs/REQUIREMENTS.md` 冲突时以本文件为准。
 > 目标：一次交付「阶段一（WebDAV 底盘 + 账号隔离）」+「阶段二（admin 页 + client 页）」。
@@ -9,15 +9,13 @@
 
 - **绝不** `systemctl` / `service` 任何操作
 - **绝不** `pkill` / `killall` / 杀任何**已存在**的进程（自己起的测试进程按 PID 清理允许）
-- **绝不** 触碰已在运行的端口：80 / 443 / 3100 / 3200 / 4000 / 5241-5243 / 5300 / 6806 / 7897 / 8000 / 3010 / 17890
-- **绝不** 修改 `仓库之外的系统配置`、任何 nginx 配置、任何容器、任何 cron
-- **绝不** 改动 `` 下**其他**项目
-- **只在 `./` 内新建/修改文件**
+- **绝不** 触碰任何已在运行的端口（80 / 443 等）
+- **绝不** 修改仓库之外的任何系统配置（nginx、容器、cron、其他项目的文件）
+- **只在本仓库内新建/修改文件**
 - 运行端口：只准 `127.0.0.1:18900`
-- 运行数据目录：只准 `./data/`（可创建）
+- 运行数据目录：只准 `./data`（可创建）
 - **Go 依赖只准加 `golang.org/x/net`**。不许加 sqlite/gin/echo/任何 web 框架、不许加 ORM、不许加日志库
 - **npm 依赖只准新增**：`react`、`react-dom`、`vite`、`@vitejs/plugin-react`、`typescript`、`@types/react`、`@types/react-dom`。不许加 UI 组件库、不许加状态管理库、不许加路由库、不许加 CSS 框架、不许加图标库（图标用内联 SVG 手写）
-
 - 提交前自查：源码里**不得出现**真实域名、私有 IP、私有路径、任何口令与密钥
 
 ## 1. 交付物
@@ -42,7 +40,7 @@
 
 ## 2. 数据与配置
 
-运行目录 `./data/`：
+运行目录（默认 `./data/`）：
 
 | 文件 | 作用 | 权限 |
 |---|---|---|
@@ -56,11 +54,11 @@
 
 ```json
 [
-  { "user": "siyuan", "pass": "...", "root": "./data/data/siyuan", "readonly": false, "disabled": false, "note": "思源笔记同步" }
+  { "user": "siyuan", "pass": "...", "root": "/srv/davbox/data/siyuan", "readonly": false, "disabled": false, "note": "思源笔记同步" }
 ]
 ```
 
-- `root` 为绝对路径；缺省 = `./data/data/<user>`
+- `root` 为绝对路径；缺省 = `<数据目录>/data/<user>`
 - 写入用「临时文件 + `os.Rename`」原子替换，并保持 0600
 - 首次启动若 `accounts.json` 不存在 → 创建空数组 `[]`
 - 首次启动若 `admin.json` 不存在 → 生成 24 位随机口令 → 写 bcrypt 哈希 + 写 `admin-password.txt` + **在 stdout 打印一次**
@@ -155,7 +153,7 @@
 
 ## 8. 必须自测并贴出证据（不可只声明）
 
-在 `./` 下启动 `./davbox -addr 127.0.0.1:18900 -data /tmp/davbox-dev`，用 `curl` 逐项跑，并把**原始输出**写进你的完成报告：
+在仓库根目录下启动 `./davbox -addr 127.0.0.1:18900 -data /tmp/davbox-dev`，用 `curl` 逐项跑，并把**原始输出**写进你的完成报告：
 
 1. 六动词：`PROPFIND Depth:0` → 207、`PROPFIND Depth:1` → 207、`PUT` → 201、`GET`（内容一致）→ 200、`MOVE` → 201、`DELETE` → 204
 2. 未认证 `PROPFIND` → 401，且 `curl -D-` 输出里能看到 `WWW-Authenticate: Basic realm="davbox"`
