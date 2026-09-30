@@ -1,7 +1,7 @@
 # davbox
 
-一个**概念只有两个**的自建 WebDAV 服务：**admin 管账号，client 登账号管文件**。
-主要给 App 用（思源笔记、Joplin 等通过 WebDAV 同步），一个应用一个账号一个目录，互不可见。
+一个概念只有两个的自建 WebDAV 服务：**admin 管账号，client 登账号管文件**。
+面向需要 WebDAV 同步的 App（思源笔记、Joplin 等），一个应用一个账号一个目录，互不可见。
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
@@ -13,13 +13,13 @@
 
 ## 特性
 
-- **一个应用一个账号一个目录**：每个账号只看得到自己的根目录，跨账号访问一律拒绝，路径逃逸（`../`、`%2e%2e`、双重编码）一律拒绝
+- **一个应用一个账号一个目录**：每个账号只看得到自己的根目录，跨账号访问一律拒绝；路径逃逸（`../`、编码后的 `%2e`、反斜杠、空字节）一律 `400`
 - **admin 页**：新增 / 停用 / 删除账号、换口令、查看每个账号的目录与用量，一键「复制连接信息」（地址 + 用户名 + 口令）
 - **client 页**：账号登录后浏览 / 上传（含拖拽）/ 下载 / 重命名 / 新建文件夹 / 删除
 - **只读账号**：写动词一律 `403`，读正常
 - **协议用官方实现**：`golang.org/x/net/webdav`（含 `LOCK` / `UNLOCK` / `COPY` / `MOVE` / 死属性持久化），不自研协议
-- **单二进制交付**：前端 `//go:embed` 打进二进制，无运行时、无数据库、无中间件依赖
-- **认证可切换**：默认自带管理员口令，开箱即用；也可以关掉自带口令（见下）
+- **单二进制交付**：前端 `//go:embed` 打进二进制，无外部运行时、无数据库
+- **管理端认证可切换**：默认自带管理员口令，也可以关闭自带口令、改由网关注入身份
 
 ## 快速开始
 
@@ -30,8 +30,14 @@ make build        # 先构建前端，再编译出单二进制 ./davbox
 ./davbox          # 默认监听 127.0.0.1:18900，数据落在 ./data
 ```
 
-首次启动会生成 `admin.json`（管理员口令的 bcrypt 哈希）、`admin-password.txt`、`secret.key`，
-并在 stdout **打印一次**管理员初始口令 —— 请立刻保存。
+首次启动（`builtin` 模式）会在数据目录生成：
+
+- `accounts.json` —— 账号表
+- `admin.json` —— 管理员口令的 bcrypt 哈希
+- `admin-password.txt` —— 管理员初始口令明文
+- `secret.key` —— 会话 cookie 的签名密钥
+
+管理员初始口令只在首次生成时于 stdout 打印一次，请立刻保存。
 
 - 管理页 `/admin`，文件页 `/`
 - App 的 WebDAV 地址填 `http(s)://<你的站点>/<应用名>`
@@ -40,38 +46,37 @@ make build        # 先构建前端，再编译出单二进制 ./davbox
 
 | 参数 | 默认值 | 说明 |
 |---|---|---|
-| `-addr` | `127.0.0.1:18900` | 监听地址。**建议只监听回环**，由 nginx 反代提供 TLS 与公网入口 |
-| `-data` | `./data` | 数据目录（账号表、管理员口令、会话密钥、各账号目录） |
+| `-addr` | `127.0.0.1:18900` | 监听地址。建议只监听回环，由 nginx 反代提供 TLS 与入口 |
+| `-data` | `./data` | 数据目录（账号表、管理员凭据、会话密钥、各账号目录） |
+
+Makefile 其他目标：`make frontend` 只构建前端，`make run` 编译后直接启动，`make vet` 静态检查，`make test` 跑测试，`make clean` 清理产物。
 
 ## 目录结构
 
 ```
 cmd/davbox/     程序入口
-internal/       账号、隔离、admin/client API
-web/            前端源码（Vite + React + TS）
+internal/       账号、认证与会话，以及 WebDAV 和 admin/client 路由
+web/            Vite + React + TS 前端（构建产物由 go:embed 嵌入）
 docs/           需求、选型与验收记录
 ```
 
-## 认证模式
+## 配置
 
-管理端认证由环境变量 `AUTH_MODE` 选择，两个取值：
+| 名称 | 默认值 | 说明 |
+|---|---|---|
+| `AUTH_MODE` | `builtin` | 管理端认证模式，取值 `builtin` 或 `sso` |
 
-| 值 | 行为 |
-|---|---|
-| `builtin`（**默认**） | 自带管理员口令：`/admin` 输入口令登录，使用内置 cookie 会话 |
-| `sso` | 关掉自带口令，管理端身份改由 `X-Auth-User` 请求头决定（自家项目接 SSO 时走这一档） |
+- `builtin`：自带管理员口令，`/admin` 输入口令登录，使用签名 cookie 会话（12 小时）。
+- `sso`：不使用自带口令登录，管理端身份取自网关注入的 `X-Auth-User`；缺失或为空返回 `401 JSON`，不会回退到 cookie。仅当 davbox 只监听回环、且该请求头由网关注入并对外剥离时才可使用。
 
-```
+```bash
 AUTH_MODE=builtin ./davbox -addr 127.0.0.1:18900 -data ./data   # 默认，可省略
 AUTH_MODE=sso     ./davbox -addr 127.0.0.1:18900 -data ./data
 ```
 
-`builtin` 是默认值，开箱即用。`sso` 只是「把自带口令关掉」的开关：登录跳转与 401 拦截由你前面的认证层决定，
-davbox 这边不再展开（建议只监听回环，公网入口交给反代）。
+两种模式都不受影响的部分：
 
-### 两种模式都不受影响的部分
-
-- WebDAV 数据面 `/<账号名>/...`：始终用应用账号 + HTTP Basic，与 `AUTH_MODE` 无关
+- WebDAV 数据面 `/<账号名>/...`：始终用应用账号 + HTTP Basic
 - 客户端接口 `/api/client/*` 与静态资源 `/assets/*`
 - 应用账号的增删改查在两种模式下都需要管理端身份
 
@@ -100,11 +105,11 @@ server {
 接 `sso` 时把 `/admin`、`/api/admin/` 交给你的认证入口，WebDAV 数据面与 `/assets/*` 直连 davbox ——
 协议端点保持自带 Basic 认证，否则 App 无法同步。
 
-## 状态
+## 已完成
 
-- 阶段一：底盘（账号隔离 + 六动词 WebDAV）—— 已完成
-- 阶段二：admin 页 + client 页 —— 已完成
-- 阶段三（可选）：配额、用量趋势、分享链接
+- 账号隔离与 WebDAV 六动词：`GET` / `PUT` / `DELETE` / `MKCOL` / `MOVE` / `PROPFIND`（`Depth 0/1` 均返回合法 `207`）
+- admin 页与 client 页
+- 单二进制 + nginx 反代部署
 
 ## License
 
