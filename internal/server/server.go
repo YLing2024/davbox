@@ -23,6 +23,8 @@ type Config struct {
 	Signer    *auth.Signer
 	// AuthMode 是管理端认证模式；零值按 builtin 处理。
 	AuthMode auth.Mode
+	// CORS 是来源白名单；nil 表示完全关闭（默认）。
+	CORS *CORS
 }
 
 // Server 持有全部运行期状态。
@@ -32,6 +34,7 @@ type Server struct {
 	adminHash []byte
 	signer    *auth.Signer
 	authMode  auth.Mode
+	cors      *CORS
 
 	davMu sync.Mutex
 	locks map[string]webdav.LockSystem
@@ -47,6 +50,7 @@ func New(cfg Config) *Server {
 		adminHash: cfg.AdminHash,
 		signer:    cfg.Signer,
 		authMode:  cfg.AuthMode.Normalize(),
+		cors:      cfg.CORS,
 		locks:     map[string]webdav.LockSystem{},
 		usage:     newUsageCache(30 * time.Second),
 	}
@@ -61,6 +65,13 @@ func (s *Server) route(w http.ResponseWriter, r *http.Request) {
 	decoded := r.URL.Path
 	if unsafePath(r.URL.EscapedPath(), decoded) {
 		writeError(w, http.StatusBadRequest, "请求路径不合法")
+		return
+	}
+
+	// CORS：先按白名单补响应头；预检（OPTIONS + Origin + ACRM）命中时在认证之前
+	// 直接 204 短路。未命中保持原有逻辑（受保护路径即 401）。
+	if s.cors.apply(w, r) && isPreflight(r) {
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 

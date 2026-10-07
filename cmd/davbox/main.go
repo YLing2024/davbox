@@ -27,6 +27,11 @@ func main() {
 		log.Fatalf("创建数据目录失败: %v", err)
 	}
 
+	cors := server.ParseCORSOrigins(os.Getenv("CORS_ORIGINS"))
+	if cors != nil {
+		log.Printf("跨域白名单已启用（来源见 CORS_ORIGINS）")
+	}
+
 	store, err := account.Open(*dataDir)
 	if err != nil {
 		log.Fatalf("加载账号失败: %v", err)
@@ -53,6 +58,7 @@ func main() {
 		AdminHash: adminHash,
 		Signer:    auth.NewSigner(secret),
 		AuthMode:  authMode,
+		CORS:      cors,
 	})
 
 	httpServer := &http.Server{
