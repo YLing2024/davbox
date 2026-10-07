@@ -35,6 +35,14 @@ export function IconCopy({ size = 16 }: IconProps) {
   )
 }
 
+export function IconCheck({ size = 16 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M5 12.5l4.5 4.5L19 7" />
+    </svg>
+  )
+}
+
 export function IconKey({ size = 16 }: IconProps) {
   return (
     <svg {...base(size)}>
