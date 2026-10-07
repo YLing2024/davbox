@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { normalizeOrigin, parseCorsOrigins } from '../src/corsOrigins.ts'
 import { adminApi } from '../src/api.ts'
 
-// --- 来源解析与校验（卡片渲染当前值、非法输入分支） ---
+// --- 来源解析与校验（设置弹窗渲染当前值、非法输入分支） ---
 
 test('留空表示关闭跨域', () => {
   assert.deepEqual(parseCorsOrigins(''), { origins: [], error: null })
@@ -13,7 +13,7 @@ test('留空表示关闭跨域', () => {
 
 test('当前值一行一个展示并可原样解析回来', () => {
   const current = ['https://app.example.com', 'http://127.0.0.1:18900']
-  const rendered = current.join('\n') // 卡片文本域的展示形式
+  const rendered = current.join('\n') // 设置弹窗文本域的展示形式
   assert.equal(rendered, 'https://app.example.com\nhttp://127.0.0.1:18900')
   assert.deepEqual(parseCorsOrigins(rendered), { origins: current, error: null })
 })
@@ -34,6 +34,15 @@ test('非法项当场报错并指出行号，不静默丢弃', () => {
   assert.ok(parsed.error)
   assert.match(parsed.error, /第 2 行/)
   assert.match(parsed.error, /ftp:\/\/bad\.example\.com/)
+})
+
+test('非法项错误文案与服务端口径一致并指出行号', () => {
+  const parsed = parseCorsOrigins('https://ok.example.com\nnot-a-url')
+  assert.deepEqual(parsed.origins, [])
+  assert.equal(
+    parsed.error,
+    '第 2 行不合法：「not-a-url」。应为 scheme://host 或 scheme://host:port，scheme 限 http/https',
+  )
 })
 
 test('逗号分隔中的非法项也定位到所在行', () => {
