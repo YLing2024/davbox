@@ -13,6 +13,7 @@ import (
 
 	"github.com/YLing2024/davbox/internal/account"
 	"github.com/YLing2024/davbox/internal/auth"
+	"github.com/YLing2024/davbox/internal/settings"
 )
 
 // Config 是装配服务器所需的依赖。
@@ -25,6 +26,8 @@ type Config struct {
 	AuthMode auth.Mode
 	// CORS 是来源白名单；nil 表示完全关闭（默认）。
 	CORS *CORS
+	// Settings 是持久化设置；非 nil 时以其当前值初始化 CORS，并在保存时热更新。
+	Settings *settings.Store
 }
 
 // Server 持有全部运行期状态。
@@ -34,7 +37,10 @@ type Server struct {
 	adminHash []byte
 	signer    *auth.Signer
 	authMode  auth.Mode
-	cors      *CORS
+
+	corsMu   sync.RWMutex
+	cors     *CORS
+	settings *settings.Store
 
 	davMu sync.Mutex
 	locks map[string]webdav.LockSystem
@@ -44,16 +50,36 @@ type Server struct {
 
 // New 构造服务器。
 func New(cfg Config) *Server {
-	return &Server{
+	s := &Server{
 		dataDir:   cfg.DataDir,
 		store:     cfg.Store,
 		adminHash: cfg.AdminHash,
 		signer:    cfg.Signer,
 		authMode:  cfg.AuthMode.Normalize(),
 		cors:      cfg.CORS,
+		settings:  cfg.Settings,
 		locks:     map[string]webdav.LockSystem{},
 		usage:     newUsageCache(30 * time.Second),
 	}
+	// settings.json 优先；无该键时 Open 已用 CORS_ORIGINS 填充默认值。
+	if cfg.Settings != nil {
+		s.setCORS(CORSFromOrigins(cfg.Settings.Current().CORSOrigins))
+	}
+	return s
+}
+
+// corsNow 返回当前生效的 CORS 配置（可能为 nil，表示关闭）。
+func (s *Server) corsNow() *CORS {
+	s.corsMu.RLock()
+	defer s.corsMu.RUnlock()
+	return s.cors
+}
+
+// setCORS 热更新当前 CORS 配置。
+func (s *Server) setCORS(c *CORS) {
+	s.corsMu.Lock()
+	s.cors = c
+	s.corsMu.Unlock()
 }
 
 // Handler 返回顶层 http.Handler。
@@ -70,13 +96,16 @@ func (s *Server) route(w http.ResponseWriter, r *http.Request) {
 
 	// CORS：先按白名单补响应头；预检（OPTIONS + Origin + ACRM）命中时在认证之前
 	// 直接 204 短路。未命中保持原有逻辑（受保护路径即 401）。
-	if s.cors.apply(w, r) && isPreflight(r) {
+	if s.corsNow().apply(w, r) && isPreflight(r) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
 	switch {
 	case decoded == "/api/admin" || strings.HasPrefix(decoded, "/api/admin/"):
+		s.handleAdmin(w, r)
+	// 需求书里的 /admin/api/* 是对管理接口的别名，鉴权与处理完全一致。
+	case decoded == "/admin/api" || strings.HasPrefix(decoded, "/admin/api/"):
 		s.handleAdmin(w, r)
 	case decoded == "/api/client" || strings.HasPrefix(decoded, "/api/client/"):
 		s.handleClient(w, r)

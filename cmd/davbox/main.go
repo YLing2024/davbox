@@ -11,6 +11,7 @@ import (
 	"github.com/YLing2024/davbox/internal/account"
 	"github.com/YLing2024/davbox/internal/auth"
 	"github.com/YLing2024/davbox/internal/server"
+	"github.com/YLing2024/davbox/internal/settings"
 )
 
 func main() {
@@ -27,14 +28,17 @@ func main() {
 		log.Fatalf("创建数据目录失败: %v", err)
 	}
 
-	cors := server.ParseCORSOrigins(os.Getenv("CORS_ORIGINS"))
-	if cors != nil {
-		log.Printf("跨域白名单已启用（来源见 CORS_ORIGINS）")
-	}
-
 	store, err := account.Open(*dataDir)
 	if err != nil {
 		log.Fatalf("加载账号失败: %v", err)
+	}
+	// settings.json 优先；没有该键时用 CORS_ORIGINS 作为初始默认。
+	sett, err := settings.Open(*dataDir, os.Getenv("CORS_ORIGINS"))
+	if err != nil {
+		log.Fatalf("加载设置失败: %v", err)
+	}
+	if n := len(sett.Current().CORSOrigins); n > 0 {
+		log.Printf("跨域白名单已启用（%d 个来源，可在管理页面修改后即时生效）", n)
 	}
 	secret, err := auth.LoadOrCreateSecret(*dataDir)
 	if err != nil {
@@ -58,7 +62,7 @@ func main() {
 		AdminHash: adminHash,
 		Signer:    auth.NewSigner(secret),
 		AuthMode:  authMode,
-		CORS:      cors,
+		Settings:  sett,
 	})
 
 	httpServer := &http.Server{

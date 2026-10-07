@@ -10,6 +10,7 @@ import (
 
 	"github.com/YLing2024/davbox/internal/account"
 	"github.com/YLing2024/davbox/internal/auth"
+	"github.com/YLing2024/davbox/internal/settings"
 	"github.com/YLing2024/davbox/internal/usage"
 )
 
@@ -110,10 +111,20 @@ func connURL(r *http.Request, user string) string {
 	return requestBaseURL(r) + "/" + user
 }
 
-// handleAdmin 处理 /api/admin 下的全部请求。
+// adminAPISuffix 去掉管理 API 前缀，返回剩余路径。
+// 同时接受 /api/admin 与需求书里的 /admin/api 别名。
+func adminAPISuffix(p string) string {
+	for _, prefix := range []string{"/api/admin/", "/admin/api/"} {
+		if strings.HasPrefix(p, prefix) {
+			return strings.TrimPrefix(p, prefix)
+		}
+	}
+	return ""
+}
+
+// handleAdmin 处理 /api/admin（及别名 /admin/api）下的全部请求。
 func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
-	rest := strings.TrimPrefix(r.URL.Path, "/api/admin")
-	rest = strings.TrimPrefix(rest, "/")
+	rest := adminAPISuffix(r.URL.Path)
 	var parts []string
 	if rest != "" {
 		parts = strings.Split(rest, "/")
@@ -157,6 +168,16 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		}
 		clearSessionCookie(w, cookieAdmin)
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+
+	case len(parts) == 1 && parts[0] == "settings":
+		switch r.Method {
+		case http.MethodGet:
+			s.adminGetSettings(w, r)
+		case http.MethodPut:
+			s.adminPutSettings(w, r)
+		default:
+			writeError(w, http.StatusMethodNotAllowed, "方法不允许")
+		}
 
 	case len(parts) == 1 && parts[0] == "accounts":
 		switch r.Method {
@@ -212,6 +233,46 @@ func (s *Server) adminLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	setSessionCookie(w, cookieAdmin, s.signer.Issue("admin", "", sessionTTL))
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// adminGetSettings 返回当前生效的设置。corsOrigins 为空数组表示关闭跨域。
+func (s *Server) adminGetSettings(w http.ResponseWriter, r *http.Request) {
+	if s.settings == nil {
+		writeJSON(w, http.StatusOK, settings.Settings{CORSOrigins: []string{}})
+		return
+	}
+	writeJSON(w, http.StatusOK, s.settings.Current())
+}
+
+// adminPutSettings 校验并原子保存设置，随后热更新 CORS，无需重启。
+func (s *Server) adminPutSettings(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		CORSOrigins *[]string `json:"corsOrigins"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "请求格式错误")
+		return
+	}
+	if body.CORSOrigins == nil {
+		writeError(w, http.StatusBadRequest, "缺少 corsOrigins 字段")
+		return
+	}
+	origins, err := settings.ValidateOrigins(*body.CORSOrigins)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if s.settings == nil {
+		writeError(w, http.StatusInternalServerError, "设置存储不可用")
+		return
+	}
+	next := settings.Settings{CORSOrigins: origins}
+	if err := s.settings.Save(next); err != nil {
+		writeError(w, http.StatusInternalServerError, "保存失败")
+		return
+	}
+	s.setCORS(CORSFromOrigins(origins))
+	writeJSON(w, http.StatusOK, next)
 }
 
 func (s *Server) adminListAccounts(w http.ResponseWriter, r *http.Request) {
