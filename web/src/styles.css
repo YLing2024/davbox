@@ -505,14 +505,16 @@ input:focus {
   margin: 18px 0 0;
 }
 
-.settings-card {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 12px;
+.settings-modal .field {
+  min-width: 0;
 }
 
-.settings-card .hint {
-  margin: 0 0 6px;
+.settings-modal .hint {
+  margin: 0;
+}
+
+.settings-modal .ok {
+  margin: 14px 0 0;
 }
 
 .cors-input {
@@ -533,12 +535,6 @@ input:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
-}
-
-.cors-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
 }
 
 .ok {

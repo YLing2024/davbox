@@ -32,7 +32,7 @@ export function parseCorsOrigins(text: string): ParsedOrigins {
       if (norm === null) {
         return {
           origins: [],
-          error: `第 ${i + 1} 行「${token}」不合法，应为 scheme://host 或 scheme://host:port（scheme 限 http/https）`,
+          error: `第 ${i + 1} 行不合法：「${token}」。应为 scheme://host 或 scheme://host:port，scheme 限 http/https`,
         }
       }
       if (!seen.has(norm)) {

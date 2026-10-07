@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState, Fragment, type FormEvent } from 'react'
+import { useCallback, useEffect, useReducer, useRef, useState, Fragment, type FormEvent } from 'react'
 import { adminApi, ApiError, type AccountView, type AuthMode, type ConnInfo } from '../api'
 import { parseCorsOrigins } from '../corsOrigins'
 import { formatSize } from '../format'
+import { initialSettingsModalState, settingsModalReducer } from '../settingsModal'
 import {
   IconCheck,
   IconCopy,
@@ -9,6 +10,7 @@ import {
   IconLogout,
   IconPlus,
   IconPower,
+  IconSettings,
   IconTrash,
 } from '../icons'
 
@@ -130,6 +132,57 @@ function ConnModal({ conn, onClose }: { conn: ConnInfo; onClose: () => void }) {
   )
 }
 
+function SettingsModal({
+  text,
+  error,
+  saved,
+  saving,
+  onChange,
+  onSave,
+  onClose,
+}: {
+  text: string
+  error: string
+  saved: boolean
+  saving: boolean
+  onChange: (text: string) => void
+  onSave: () => void
+  onClose: () => void
+}) {
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal settings-modal" onClick={(e) => e.stopPropagation()}>
+        <h2>设置</h2>
+        <div className="field">
+          <label htmlFor="cors-origins">跨域白名单（CORS）</label>
+          <p className="hint">
+            允许这些来源的网页在浏览器里直接访问本 WebDAV。留空表示关闭跨域。请只填你自己的前端域名。
+          </p>
+          <textarea
+            id="cors-origins"
+            className="cors-input"
+            rows={4}
+            spellCheck={false}
+            value={text}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="https://app.example.com"
+          />
+          {error ? <p className="error">{error}</p> : null}
+        </div>
+        {saved ? <p className="ok">已保存并即时生效</p> : null}
+        <div className="modal-actions">
+          <button type="button" className="btn primary" onClick={onSave} disabled={saving}>
+            保存
+          </button>
+          <button type="button" className="btn" onClick={onClose}>
+            关闭
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function AdminPage() {
   const [mode, setMode] = useState<AuthMode | null>(null)
   const [ready, setReady] = useState(false)
@@ -142,9 +195,12 @@ export function AdminPage() {
   const [showNew, setShowNew] = useState(false)
   const [newUser, setNewUser] = useState('')
   const [newReadonly, setNewReadonly] = useState(false)
-  const [corsText, setCorsText] = useState('')
-  const [corsError, setCorsError] = useState('')
-  const [corsSaved, setCorsSaved] = useState('')
+  const [corsOrigins, setCorsOrigins] = useState<string[]>([])
+  const [settings, dispatchSettings] = useReducer(
+    settingsModalReducer,
+    undefined,
+    initialSettingsModalState,
+  )
   const modeRef = useRef<AuthMode>('builtin')
   const corsLoadedRef = useRef(false)
 
@@ -163,7 +219,7 @@ export function AdminPage() {
       setAuthed(true)
       if (!corsLoadedRef.current) {
         const st = await adminApi.getSettings()
-        setCorsText(st.corsOrigins.join('\n'))
+        setCorsOrigins(st.corsOrigins)
         corsLoadedRef.current = true
       }
     } catch (err) {
@@ -232,9 +288,8 @@ export function AdminPage() {
       setAuthed(false)
       setAccounts([])
       corsLoadedRef.current = false
-      setCorsText('')
-      setCorsError('')
-      setCorsSaved('')
+      setCorsOrigins([])
+      dispatchSettings({ type: 'close' })
     })
   }
 
@@ -282,25 +337,31 @@ export function AdminPage() {
     })
   }
 
-  const saveCors = () => {
-    const parsed = parseCorsOrigins(corsText)
-    setCorsSaved('')
+  const openSettings = () => {
+    dispatchSettings({ type: 'open', origins: corsOrigins })
+  }
+
+  const saveSettings = () => {
+    const parsed = parseCorsOrigins(settings.text)
     if (parsed.error) {
-      setCorsError(parsed.error)
+      dispatchSettings({ type: 'save-error', message: parsed.error })
       return
     }
-    setCorsError('')
+    dispatchSettings({ type: 'save-start' })
     void (async () => {
       setBusy(true)
       try {
         const saved = await adminApi.saveSettings(parsed.origins)
-        setCorsText(saved.corsOrigins.join('\n'))
-        setCorsSaved('已保存并即时生效')
+        setCorsOrigins(saved.corsOrigins)
+        dispatchSettings({ type: 'save-ok', origins: saved.corsOrigins })
       } catch (err) {
         if (err instanceof ApiError && err.status === 401) {
           handleUnauthorized()
         } else {
-          setCorsError(err instanceof Error ? err.message : '保存失败')
+          dispatchSettings({
+            type: 'save-error',
+            message: err instanceof Error ? err.message : '保存失败',
+          })
         }
       } finally {
         setBusy(false)
@@ -356,6 +417,10 @@ export function AdminPage() {
         <span className="wordmark">davbox</span>
         <span className="tag">管理</span>
         <span className="spacer" />
+        <button type="button" className="btn ghost" onClick={openSettings}>
+          <IconSettings />
+          设置
+        </button>
         <button type="button" className="btn ghost" onClick={logout}>
           <IconLogout />
           退出
@@ -463,36 +528,19 @@ export function AdminPage() {
         ))}
       </div>
 
-      <section className="panel settings-card">
-        <div className="field">
-          <label htmlFor="cors-origins">跨域白名单（CORS）</label>
-          <p className="hint">
-            允许这些来源的网页在浏览器里直接访问本 WebDAV。留空表示关闭跨域。请只填你自己的前端域名。
-          </p>
-          <textarea
-            id="cors-origins"
-            className="cors-input"
-            rows={4}
-            spellCheck={false}
-            value={corsText}
-            onChange={(e) => {
-              setCorsText(e.target.value)
-              setCorsError('')
-              setCorsSaved('')
-            }}
-            placeholder="https://app.example.com"
-          />
-          {corsError ? <p className="error">{corsError}</p> : null}
-        </div>
-        <div className="cors-actions">
-          <button type="button" className="btn primary" onClick={saveCors} disabled={busy}>
-            保存
-          </button>
-          {corsSaved ? <span className="ok">{corsSaved}</span> : null}
-        </div>
-      </section>
-
       {conn ? <ConnModal conn={conn} onClose={() => setConn(null)} /> : null}
+
+      {settings.open ? (
+        <SettingsModal
+          text={settings.text}
+          error={settings.error}
+          saved={settings.saved}
+          saving={settings.saving}
+          onChange={(text) => dispatchSettings({ type: 'edit', text })}
+          onSave={saveSettings}
+          onClose={() => dispatchSettings({ type: 'close' })}
+        />
+      ) : null}
     </div>
   )
 }
