@@ -14,6 +14,7 @@ import (
 
 	"github.com/YLing2024/davbox/internal/account"
 	"github.com/YLing2024/davbox/internal/auth"
+	"github.com/YLing2024/davbox/internal/settings"
 )
 
 const testAdminPass = "test-admin-pass"
@@ -29,8 +30,12 @@ func newTestServer(t *testing.T) (*Server, *account.Store, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	sett, err := settings.Open(dir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
 	signer := auth.NewSigner([]byte("0123456789abcdef0123456789abcdef"))
-	return New(Config{DataDir: dir, Store: store, AdminHash: hash, Signer: signer}), store, dir
+	return New(Config{DataDir: dir, Store: store, AdminHash: hash, Signer: signer, Settings: sett}), store, dir
 }
 
 func request(s *Server, method, target, user, pass string, body io.Reader, headers map[string]string) *httptest.ResponseRecorder {
