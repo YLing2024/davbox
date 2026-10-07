@@ -2,8 +2,9 @@ package server
 
 import (
 	"net/http"
-	"net/url"
 	"strings"
+
+	"github.com/YLing2024/davbox/internal/settings"
 )
 
 // CORS 固定回给浏览器的响应头取值。命中白名单时才设置。
@@ -25,7 +26,21 @@ type CORS struct {
 func ParseCORSOrigins(v string) *CORS {
 	c := &CORS{origins: map[string]struct{}{}}
 	for _, part := range strings.Split(v, ",") {
-		if norm, ok := normalizeOrigin(part); ok {
+		if norm, ok := settings.NormalizeOrigin(part); ok {
+			c.origins[norm] = struct{}{}
+		}
+	}
+	if len(c.origins) == 0 {
+		return nil
+	}
+	return c
+}
+
+// CORSFromOrigins 用一组已规整的来源构造白名单；为空时返回 nil 表示关闭。
+func CORSFromOrigins(origins []string) *CORS {
+	c := &CORS{origins: map[string]struct{}{}}
+	for _, o := range origins {
+		if norm, ok := settings.NormalizeOrigin(o); ok {
 			c.origins[norm] = struct{}{}
 		}
 	}
@@ -38,33 +53,12 @@ func ParseCORSOrigins(v string) *CORS {
 // enabled 报告是否配置了至少一个来源。
 func (c *CORS) enabled() bool { return c != nil && len(c.origins) > 0 }
 
-// normalizeOrigin 把来源规整成 scheme://host[:port]。忽略 path/query/末尾斜杠，
-// scheme 与 host 转小写，端口原样保留（只有显式写了端口才保留）。
-func normalizeOrigin(raw string) (string, bool) {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return "", false
-	}
-	u, err := url.Parse(raw)
-	if err != nil || u.Scheme == "" || u.Host == "" {
-		return "", false
-	}
-	host := strings.ToLower(u.Hostname())
-	if host == "" {
-		return "", false
-	}
-	if port := u.Port(); port != "" {
-		return strings.ToLower(u.Scheme) + "://" + host + ":" + port, true
-	}
-	return strings.ToLower(u.Scheme) + "://" + host, true
-}
-
 // allowed 报告请求的 Origin 是否在白名单内（精确匹配）。
 func (c *CORS) allowed(origin string) bool {
 	if !c.enabled() || origin == "" {
 		return false
 	}
-	norm, ok := normalizeOrigin(origin)
+	norm, ok := settings.NormalizeOrigin(origin)
 	if !ok {
 		return false
 	}
