@@ -38,6 +38,8 @@ On first start (`builtin` mode) it generates in the data directory:
 - `admin-password.txt` — the admin's initial plaintext password
 - `secret.key` — the signing key for the session cookie
 
+Saving settings (such as the CORS allow-list) on the admin page writes `settings.json` (atomic replace).
+
 The admin's initial password is printed to stdout only when first generated; save it immediately.
 
 - Admin page `/admin`, file page `/`
@@ -66,7 +68,7 @@ docs/           requirements, technology choices and acceptance records
 | Name | Default | Description |
 |---|---|---|
 | `AUTH_MODE` | `builtin` | Admin authentication mode, either `builtin` or `sso` |
-| `CORS_ORIGINS` | (empty, off) | Allow-list of origins for direct browser access, comma-separated, exact match on `scheme://host[:port]`; empty means fully off |
+| `CORS_ORIGINS` | (empty, off) | First-run default for the CORS allow-list, comma-separated, exact match on `scheme://host[:port]`; maintain it from the "Cross-origin allow-list (CORS)" card on the admin page |
 
 - `builtin`: built-in admin password; log in at `/admin` by entering it, using a signed cookie session (12 hours).
 - `sso`: no built-in password login; the admin identity comes from the `X-Auth-User` injected by the gateway; a missing or empty value returns `401 JSON` and does not fall back to a cookie. Use it only when davbox listens on loopback only and the header is injected by the gateway and stripped from the outside.
@@ -86,13 +88,10 @@ What is unaffected in both modes:
 
 Off by default. When a browser uses `fetch` to talk to WebDAV directly, methods such as `PROPFIND` / `PUT` trigger a CORS preflight; without CORS the preflight gets `401` and the browser only reports `TypeError: Failed to fetch`.
 
-When enabled, only origins on the allow-list can cross-origin access, and the service still uses Basic auth — it never returns `*`:
+Configure it in the "Cross-origin allow-list (CORS)" card on the admin page `/admin`: one origin per line (comma-separated also works). A save takes effect immediately, no restart; an empty list turns CORS off.
 
-```bash
-CORS_ORIGINS=https://app.example.com,https://notes.example.com ./davbox -addr 127.0.0.1:18900 -data ./data
-```
-
-- Comma-separated, exact match on `scheme://host[:port]`; a trailing `/` is ignored, `scheme`/`host` are case-insensitive, the port is exact (`https://app.example.com` and `https://app.example.com:443` are different origins).
+- Only `scheme://host` or `scheme://host:port` is accepted, with `scheme` limited to `http` / `https`; an invalid entry is reported on the spot with its line number. A trailing `/` is ignored, `scheme`/`host` are case-insensitive, the port is exact (`https://app.example.com` and `https://app.example.com:443` are different origins).
+- The settings live in `settings.json` in the data directory; the `CORS_ORIGINS` environment variable is only the **first-run default**, and once you save on the admin page the page value wins.
 - A matching preflight returns `204` without authentication; the actual request afterwards still uses account + Basic, so permissions and directory isolation are unchanged.
 - Only list frontend origins you trust, never `*` and never someone else's site. Cross-origin responses allow credentials (`Access-Control-Allow-Credentials: true`), so a wrong origin hands your WebDAV to it.
 

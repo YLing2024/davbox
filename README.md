@@ -39,6 +39,8 @@ make build        # 先构建前端，再编译出单二进制 ./davbox
 - `admin-password.txt` —— 管理员初始口令明文
 - `secret.key` —— 会话 cookie 的签名密钥
 
+在管理页面保存设置（如跨域白名单）会写入 `settings.json`（原子替换）。
+
 管理员初始口令只在首次生成时于 stdout 打印一次，请立刻保存。
 
 - 管理页 `/admin`，文件页 `/`
@@ -67,7 +69,7 @@ docs/           需求、选型与验收记录
 | 名称 | 默认值 | 说明 |
 |---|---|---|
 | `AUTH_MODE` | `builtin` | 管理端认证模式，取值 `builtin` 或 `sso` |
-| `CORS_ORIGINS` | （空，关闭） | 浏览器跨域直连的来源白名单，逗号分隔，精确匹配 `scheme://host[:port]`；留空即完全关闭 |
+| `CORS_ORIGINS` | （空，关闭） | 跨域白名单的**首次运行默认值**，逗号分隔，精确匹配 `scheme://host[:port]`；启动后请在管理页面的「跨域白名单（CORS）」里维护 |
 
 - `builtin`：自带管理员口令，`/admin` 输入口令登录，使用签名 cookie 会话（12 小时）。
 - `sso`：不使用自带口令登录，管理端身份取自网关注入的 `X-Auth-User`；缺失或为空返回 `401 JSON`，不会回退到 cookie。仅当 davbox 只监听回环、且该请求头由网关注入并对外剥离时才可使用。
@@ -87,13 +89,10 @@ AUTH_MODE=sso     ./davbox -addr 127.0.0.1:18900 -data ./data
 
 默认关闭。浏览器用 `fetch` 直连 WebDAV 时，`PROPFIND` / `PUT` 等方法会先发 CORS 预检；不开 CORS 时预检收到 `401`，浏览器只会报 `TypeError: Failed to fetch`。
 
-开启后只有白名单里的来源能跨域访问，服务仍用 Basic 认证，绝不回 `*`：
+在管理页面 `/admin` 的「跨域白名单（CORS）」卡片里配置：一行一个来源（也允许逗号分隔），保存即生效、无需重启；留空表示关闭跨域。
 
-```bash
-CORS_ORIGINS=https://app.example.com,https://notes.example.com ./davbox -addr 127.0.0.1:18900 -data ./data
-```
-
-- 逗号分隔，精确匹配 `scheme://host[:port]`；忽略来源末尾的 `/`，`scheme`/`host` 大小写不敏感，端口精确（`https://app.example.com` 与 `https://app.example.com:443` 视为不同来源）。
+- 只接受 `scheme://host` 或 `scheme://host:port`，`scheme` 限 `http` / `https`；非法项会当场报错并指出第几行。忽略来源末尾的 `/`，`scheme` / `host` 大小写不敏感，端口精确（`https://app.example.com` 与 `https://app.example.com:443` 视为不同来源）。
+- 配置保存在数据目录的 `settings.json`；`CORS_ORIGINS` 环境变量只作为**首次运行的默认值**，管理页面一旦保存就以页面里的值为准。
 - 命中的预检直接 `204` 且不要求认证；随后的真实请求仍走账号 + Basic，权限与目录隔离完全不变。
 - 只填自己信任的前端域名，不要填 `*`，也不要填别人的站点。跨域响应允许携带凭据（`Access-Control-Allow-Credentials: true`），来源写错就等于把 WebDAV 交给了该来源。
 

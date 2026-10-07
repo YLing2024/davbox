@@ -84,7 +84,7 @@
 
 ## 4. admin API（阶段二）
 
-前缀 `/api/admin`，除 `login` 外都要会话 cookie。
+前缀 `/api/admin`（别名 `/admin/api`），除 `login` 外都要会话 cookie（`sso` 模式下为 `X-Auth-User`）。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -96,10 +96,14 @@
 | POST | `/api/admin/accounts/{user}/rotate` | 换口令 → 返回新口令 |
 | PATCH | `/api/admin/accounts/{user}` | 体 `{"readonly":true,"disabled":false,"note":"..."}` 局部更新 |
 | DELETE | `/api/admin/accounts/{user}` | 停用并删除条目；**磁盘目录保留**（响应里说明） |
+| GET | `/api/admin/settings` | 返回当前设置：`{"corsOrigins":[...]}`（空数组 = 关闭跨域） |
+| PUT | `/api/admin/settings` | 体 `{"corsOrigins":["https://app.example.com"]}` → 校验、原子保存到 `settings.json` 并热更新；非法项 → 400 且指明「第 N 行」 |
 
 - 账号名校验：`^[a-z0-9][a-z0-9_-]{0,31}$`；重名 → 409
 - 用量统计：按需 `filepath.WalkDir` 统计，结果缓存 30 秒
 - 所有写操作返回后立刻落盘（原子替换）
+- 跨域来源校验：只接受 `scheme://host` 或 `scheme://host:port`，`scheme` 限 `http`/`https`
+- 设置优先级：`settings.json` 里有 `corsOrigins` 键 → 以文件为准；无该键（或文件不存在）→ 用 `CORS_ORIGINS` 作为初始默认；都没有 = 关闭跨域。保存后无需重启即生效
 
 ## 5. client API（阶段二）
 
