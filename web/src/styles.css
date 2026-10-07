@@ -472,7 +472,7 @@ input:focus {
 
 .conn {
   display: grid;
-  grid-template-columns: 72px 1fr;
+  grid-template-columns: 72px 1fr auto;
   gap: 10px 14px;
   margin: 0;
 }
@@ -488,6 +488,14 @@ input:focus {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 13px;
   word-break: break-all;
+}
+
+.conn .conn-copy {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  font-family: inherit;
+  font-size: inherit;
 }
 
 .hint {
