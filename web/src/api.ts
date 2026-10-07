@@ -16,6 +16,10 @@ export interface ConnInfo {
 
 export type AuthMode = 'builtin' | 'sso'
 
+export interface Settings {
+  corsOrigins: string[]
+}
+
 export interface Entry {
   name: string
   isDir: boolean
@@ -80,6 +84,9 @@ export const adminApi = {
     request<AccountView>('PATCH', `/api/admin/accounts/${encodeURIComponent(user)}`, patch),
   remove: (user: string) =>
     request<{ ok: boolean; message: string }>('DELETE', `/api/admin/accounts/${encodeURIComponent(user)}`),
+  getSettings: () => request<Settings>('GET', '/api/admin/settings'),
+  saveSettings: (corsOrigins: string[]) =>
+    request<Settings>('PUT', '/api/admin/settings', { corsOrigins }),
 }
 
 function encodePath(p: string): string {

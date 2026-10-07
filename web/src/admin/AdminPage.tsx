@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, Fragment, type FormEvent } from 'react'
 import { adminApi, ApiError, type AccountView, type AuthMode, type ConnInfo } from '../api'
+import { parseCorsOrigins } from '../corsOrigins'
 import { formatSize } from '../format'
 import {
   IconCheck,
@@ -141,7 +142,11 @@ export function AdminPage() {
   const [showNew, setShowNew] = useState(false)
   const [newUser, setNewUser] = useState('')
   const [newReadonly, setNewReadonly] = useState(false)
+  const [corsText, setCorsText] = useState('')
+  const [corsError, setCorsError] = useState('')
+  const [corsSaved, setCorsSaved] = useState('')
   const modeRef = useRef<AuthMode>('builtin')
+  const corsLoadedRef = useRef(false)
 
   const handleUnauthorized = useCallback(() => {
     if (modeRef.current === 'sso') {
@@ -156,6 +161,11 @@ export function AdminPage() {
       const list = await adminApi.list()
       setAccounts(list)
       setAuthed(true)
+      if (!corsLoadedRef.current) {
+        const st = await adminApi.getSettings()
+        setCorsText(st.corsOrigins.join('\n'))
+        corsLoadedRef.current = true
+      }
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         handleUnauthorized()
@@ -221,6 +231,10 @@ export function AdminPage() {
       await adminApi.logout()
       setAuthed(false)
       setAccounts([])
+      corsLoadedRef.current = false
+      setCorsText('')
+      setCorsError('')
+      setCorsSaved('')
     })
   }
 
@@ -266,6 +280,32 @@ export function AdminPage() {
       await adminApi.remove(user)
       await load()
     })
+  }
+
+  const saveCors = () => {
+    const parsed = parseCorsOrigins(corsText)
+    setCorsSaved('')
+    if (parsed.error) {
+      setCorsError(parsed.error)
+      return
+    }
+    setCorsError('')
+    void (async () => {
+      setBusy(true)
+      try {
+        const saved = await adminApi.saveSettings(parsed.origins)
+        setCorsText(saved.corsOrigins.join('\n'))
+        setCorsSaved('已保存并即时生效')
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+          handleUnauthorized()
+        } else {
+          setCorsError(err instanceof Error ? err.message : '保存失败')
+        }
+      } finally {
+        setBusy(false)
+      }
+    })()
   }
 
   if (!ready || mode === null) {
@@ -422,6 +462,35 @@ export function AdminPage() {
           </div>
         ))}
       </div>
+
+      <section className="panel settings-card">
+        <div className="field">
+          <label htmlFor="cors-origins">跨域白名单（CORS）</label>
+          <p className="hint">
+            允许这些来源的网页在浏览器里直接访问本 WebDAV。留空表示关闭跨域。请只填你自己的前端域名。
+          </p>
+          <textarea
+            id="cors-origins"
+            className="cors-input"
+            rows={4}
+            spellCheck={false}
+            value={corsText}
+            onChange={(e) => {
+              setCorsText(e.target.value)
+              setCorsError('')
+              setCorsSaved('')
+            }}
+            placeholder="https://app.example.com"
+          />
+          {corsError ? <p className="error">{corsError}</p> : null}
+        </div>
+        <div className="cors-actions">
+          <button type="button" className="btn primary" onClick={saveCors} disabled={busy}>
+            保存
+          </button>
+          {corsSaved ? <span className="ok">{corsSaved}</span> : null}
+        </div>
+      </section>
 
       {conn ? <ConnModal conn={conn} onClose={() => setConn(null)} /> : null}
     </div>
