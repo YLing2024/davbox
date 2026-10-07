@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, Fragment, type FormEvent } from 'react'
 import { adminApi, ApiError, type AccountView, type AuthMode, type ConnInfo } from '../api'
 import { formatSize } from '../format'
 import {
+  IconCheck,
   IconCopy,
   IconKey,
   IconLogout,
@@ -66,18 +67,43 @@ function Switch({
 }
 
 function ConnModal({ conn, onClose }: { conn: ConnInfo; onClose: () => void }) {
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState<Record<string, boolean>>({})
+
+  const copyItem = async (key: string, value: string) => {
+    if (await copyText(value)) {
+      setCopied((state) => ({ ...state, [key]: true }))
+      window.setTimeout(() => setCopied((state) => ({ ...state, [key]: false })), 1600)
+    }
+  }
+
+  const fields: { key: string; label: string; value: string }[] = [
+    { key: 'url', label: '地址', value: conn.url },
+    { key: 'user', label: '用户名', value: conn.user },
+    { key: 'pass', label: '口令', value: conn.pass },
+  ]
+
   return (
     <div className="overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2>{'连接信息'}</h2>
         <dl className="conn">
-          <dt>地址</dt>
-          <dd>{conn.url}</dd>
-          <dt>用户名</dt>
-          <dd>{conn.user}</dd>
-          <dt>口令</dt>
-          <dd>{conn.pass}</dd>
+          {fields.map((field) => (
+            <Fragment key={field.key}>
+              <dt>{field.label}</dt>
+              <dd>{field.value}</dd>
+              <dd className="conn-copy">
+                <button
+                  type="button"
+                  className="icon-btn"
+                  aria-label={copied[field.key] ? '已复制' : `复制${field.label}`}
+                  title={copied[field.key] ? '已复制' : `复制${field.label}`}
+                  onClick={() => copyItem(field.key, field.value)}
+                >
+                  {copied[field.key] ? <IconCheck /> : <IconCopy />}
+                </button>
+              </dd>
+            </Fragment>
+          ))}
         </dl>
         <p className="hint">把地址填进 App 的 WebDAV 设置。</p>
         <div className="modal-actions">
@@ -86,13 +112,13 @@ function ConnModal({ conn, onClose }: { conn: ConnInfo; onClose: () => void }) {
             className="btn primary"
             onClick={async () => {
               if (await copyText(connText(conn))) {
-                setCopied(true)
-                window.setTimeout(() => setCopied(false), 1600)
+                setCopied((state) => ({ ...state, all: true }))
+                window.setTimeout(() => setCopied((state) => ({ ...state, all: false })), 1600)
               }
             }}
           >
             <IconCopy />
-            {copied ? '已复制' : '复制连接信息'}
+            {copied.all ? '已复制' : '复制连接信息'}
           </button>
           <button type="button" className="btn" onClick={onClose}>
             关闭
