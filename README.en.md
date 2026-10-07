@@ -66,6 +66,7 @@ docs/           requirements, technology choices and acceptance records
 | Name | Default | Description |
 |---|---|---|
 | `AUTH_MODE` | `builtin` | Admin authentication mode, either `builtin` or `sso` |
+| `CORS_ORIGINS` | (empty, off) | Allow-list of origins for direct browser access, comma-separated, exact match on `scheme://host[:port]`; empty means fully off |
 
 - `builtin`: built-in admin password; log in at `/admin` by entering it, using a signed cookie session (12 hours).
 - `sso`: no built-in password login; the admin identity comes from the `X-Auth-User` injected by the gateway; a missing or empty value returns `401 JSON` and does not fall back to a cookie. Use it only when davbox listens on loopback only and the header is injected by the gateway and stripped from the outside.
@@ -80,6 +81,49 @@ What is unaffected in both modes:
 - WebDAV data plane `/<account name>/...`: always uses the app account + HTTP Basic
 - Client endpoints `/api/client/*` and static assets `/assets/*`
 - Account CRUD always requires an admin identity in both modes
+
+## Direct browser access (CORS)
+
+Off by default. When a browser uses `fetch` to talk to WebDAV directly, methods such as `PROPFIND` / `PUT` trigger a CORS preflight; without CORS the preflight gets `401` and the browser only reports `TypeError: Failed to fetch`.
+
+When enabled, only origins on the allow-list can cross-origin access, and the service still uses Basic auth — it never returns `*`:
+
+```bash
+CORS_ORIGINS=https://app.example.com,https://notes.example.com ./davbox -addr 127.0.0.1:18900 -data ./data
+```
+
+- Comma-separated, exact match on `scheme://host[:port]`; a trailing `/` is ignored, `scheme`/`host` are case-insensitive, the port is exact (`https://app.example.com` and `https://app.example.com:443` are different origins).
+- A matching preflight returns `204` without authentication; the actual request afterwards still uses account + Basic, so permissions and directory isolation are unchanged.
+- Only list frontend origins you trust, never `*` and never someone else's site. Cross-origin responses allow credentials (`Access-Control-Allow-Credentials: true`), so a wrong origin hands your WebDAV to it.
+
+**Alternative**: if you would rather not enable CORS (or the upstream WebDAV server cannot), put the frontend and WebDAV on the same origin and reverse-proxy WebDAV under a sub-path with nginx; the frontend then uses a same-origin path and needs no CORS at all:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name app.example.com;
+
+    # frontend assets / SPA
+    location / {
+        root /var/www/app;
+        try_files $uri /index.html;
+    }
+
+    # same-origin sub-path straight to davbox's WebDAV data plane
+    location /dav/ {
+        proxy_pass http://127.0.0.1:18900/;
+        proxy_request_buffering off;
+        client_max_body_size 0;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Point the frontend's WebDAV address at the same-origin path `/dav/<app name>` (e.g. `/dav/myapp`). Third-party WebDAV servers often cannot enable CORS, in which case the same-origin proxy is the only workable option.
 
 ## Deployment (nginx reverse proxy)
 

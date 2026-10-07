@@ -67,6 +67,7 @@ docs/           需求、选型与验收记录
 | 名称 | 默认值 | 说明 |
 |---|---|---|
 | `AUTH_MODE` | `builtin` | 管理端认证模式，取值 `builtin` 或 `sso` |
+| `CORS_ORIGINS` | （空，关闭） | 浏览器跨域直连的来源白名单，逗号分隔，精确匹配 `scheme://host[:port]`；留空即完全关闭 |
 
 - `builtin`：自带管理员口令，`/admin` 输入口令登录，使用签名 cookie 会话（12 小时）。
 - `sso`：不使用自带口令登录，管理端身份取自网关注入的 `X-Auth-User`；缺失或为空返回 `401 JSON`，不会回退到 cookie。仅当 davbox 只监听回环、且该请求头由网关注入并对外剥离时才可使用。
@@ -81,6 +82,49 @@ AUTH_MODE=sso     ./davbox -addr 127.0.0.1:18900 -data ./data
 - WebDAV 数据面 `/<账号名>/...`：始终用应用账号 + HTTP Basic
 - 客户端接口 `/api/client/*` 与静态资源 `/assets/*`
 - 应用账号的增删改查在两种模式下都需要管理端身份
+
+## 跨域直连（浏览器端使用）
+
+默认关闭。浏览器用 `fetch` 直连 WebDAV 时，`PROPFIND` / `PUT` 等方法会先发 CORS 预检；不开 CORS 时预检收到 `401`，浏览器只会报 `TypeError: Failed to fetch`。
+
+开启后只有白名单里的来源能跨域访问，服务仍用 Basic 认证，绝不回 `*`：
+
+```bash
+CORS_ORIGINS=https://app.example.com,https://notes.example.com ./davbox -addr 127.0.0.1:18900 -data ./data
+```
+
+- 逗号分隔，精确匹配 `scheme://host[:port]`；忽略来源末尾的 `/`，`scheme`/`host` 大小写不敏感，端口精确（`https://app.example.com` 与 `https://app.example.com:443` 视为不同来源）。
+- 命中的预检直接 `204` 且不要求认证；随后的真实请求仍走账号 + Basic，权限与目录隔离完全不变。
+- 只填自己信任的前端域名，不要填 `*`，也不要填别人的站点。跨域响应允许携带凭据（`Access-Control-Allow-Credentials: true`），来源写错就等于把 WebDAV 交给了该来源。
+
+**替代方案**：若不想开 CORS（或上游 WebDAV 服务端根本不能开），让前端与 WebDAV 同域，用 nginx 反向代理把 WebDAV 挂到同域子路径，前端请求同源路径即可，完全不需要 CORS：
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name app.example.com;
+
+    # 前端静态资源 / 单页应用
+    location / {
+        root /var/www/app;
+        try_files $uri /index.html;
+    }
+
+    # 同域子路径直通 davbox 的 WebDAV 数据面
+    location /dav/ {
+        proxy_pass http://127.0.0.1:18900/;
+        proxy_request_buffering off;
+        client_max_body_size 0;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+前端把 WebDAV 地址写成同域的 `/dav/<应用名>` 即可（例：`/dav/myapp`）。第三方 WebDAV 服务器常常不能开 CORS，这时同域反代是唯一可行解。
 
 ## 部署（nginx 反代）
 
