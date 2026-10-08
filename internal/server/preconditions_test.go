@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -378,5 +380,106 @@ func TestOffModeSkipsEvaluation(t *testing.T) {
 	}
 	if logs.Len() != 0 {
 		t.Fatalf("off 模式不应产生前置评估日志，实际 %q", logs.String())
+	}
+}
+
+// §3.2 路径规范化单元测试。
+func TestNormalizeRel(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+		ok   bool
+	}{
+		{"a/./b", "a/b", true},
+		{"a//b", "a/b", true},
+		{"", "", true},
+		{"a/../b", "b", true},
+		{"../x", "../x", false},
+		{"..", "..", false},
+		{"a/../../x", "../x", false},
+	}
+	for _, c := range cases {
+		got, ok := normalizeRel(c.in)
+		if got != c.want || ok != c.ok {
+			t.Fatalf("normalizeRel(%q) = (%q,%v)，期望 (%q,%v)", c.in, got, ok, c.want, c.ok)
+		}
+	}
+}
+
+// §3.2 越界目标换算为 ok == false。
+func TestPreconditionTargetRejectsEscape(t *testing.T) {
+	s, _ := newDAVTest(t)
+	acct, ok := s.store.Get(testDAVUser)
+	if !ok {
+		t.Fatalf("账号 %s 不存在", testDAVUser)
+	}
+	rel, fsPath, ok := preconditionTarget(acct, testDAVUser, "/app1/../../etc/passwd")
+	if ok {
+		t.Fatalf("越界路径不应在界内，rel=%q fsPath=%q", rel, fsPath)
+	}
+}
+
+// §3.3 等价写法（a/b、a/./b、a//b）必须规范化为同一个锁 key。
+func TestPreconditionLockKeyNormalized(t *testing.T) {
+	s, _ := newDAVTest(t)
+	acct, ok := s.store.Get(testDAVUser)
+	if !ok {
+		t.Fatalf("账号 %s 不存在", testDAVUser)
+	}
+	relA, _, okA := preconditionTarget(acct, testDAVUser, "/app1/a/b")
+	relB, _, okB := preconditionTarget(acct, testDAVUser, "/app1/a/./b")
+	relC, _, okC := preconditionTarget(acct, testDAVUser, "/app1/a//b")
+	if !okA || !okB || !okC {
+		t.Fatalf("合法路径不应越界: okA=%v okB=%v okC=%v", okA, okB, okC)
+	}
+	want := lockKey(testDAVUser, "a/b")
+	for _, rel := range []string{relA, relB, relC} {
+		if got := lockKey(testDAVUser, rel); got != want {
+			t.Fatalf("锁 key 未规范化: rel=%q key=%q，期望 %q", rel, got, want)
+		}
+	}
+}
+
+// §3.1 越界目标直接进入 guardPreconditions 时跳过评估并记日志，不写 412。
+func TestGuardPreconditionsSkipsEscape(t *testing.T) {
+	s, _ := newDAVTest(t)
+	acct, ok := s.store.Get(testDAVUser)
+	if !ok {
+		t.Fatalf("账号 %s 不存在", testDAVUser)
+	}
+	logs := captureLogs(s)
+
+	req := httptest.NewRequest(http.MethodPut, "/app1/../app2/x", nil)
+	req.Header.Set("If-Match", "*")
+	rec := httptest.NewRecorder()
+
+	release, ok := s.guardPreconditions(rec, req, acct, testDAVUser)
+	if !ok {
+		t.Fatal("越界目标不应被前置拒绝")
+	}
+	release()
+	if rec.Code == http.StatusPreconditionFailed {
+		t.Fatalf("越界目标不应写出 412，实际 %d", rec.Code)
+	}
+	if !strings.Contains(logs.String(), "路径越界") {
+		t.Fatalf("越界目标应记一条跳过日志，实际 %q", logs.String())
+	}
+}
+
+// §3.1 PUT 越界路径：不做前置拒绝（非 412），由路由/前缀隔离拒绝为 4xx，且不落盘。
+func TestPreconditionPathTraversalNotEvaluated(t *testing.T) {
+	s, store, _ := newTestServer(t)
+	_, pass, _ := store.Create(testDAVUser, false, "")
+	other, _, _ := store.Create("app2", false, "")
+
+	rec := davPut(s, pass, "/app1/../app2/x", "pwn", map[string]string{"If-Match": "*"})
+	if rec.Code == http.StatusPreconditionFailed {
+		t.Fatalf("越界路径不应被前置评估为 412，实际 %d", rec.Code)
+	}
+	if rec.Code < 400 || rec.Code >= 500 {
+		t.Fatalf("越界路径应被拒绝为 4xx，实际 %d", rec.Code)
+	}
+	if _, err := os.Stat(filepath.Join(other.Root, "x")); !os.IsNotExist(err) {
+		t.Fatalf("越界请求不应创建文件，stat err=%v", err)
 	}
 }
