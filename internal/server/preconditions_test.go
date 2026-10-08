@@ -229,7 +229,7 @@ func TestInvalidHeaderIgnored(t *testing.T) {
 
 	bad := []map[string]string{
 		{"If-Match": ",,,"},
-		{"If-Match": "abc"},          // 缺引号
+		{"If-Match": "abc"},           // 缺引号
 		{"If-Match": `"unterminated`}, // 未闭合
 		{"If-None-Match": ""},
 		{"If-None-Match": `, "a"`},
