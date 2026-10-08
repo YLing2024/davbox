@@ -57,7 +57,11 @@ func (d *deadPropFS) Mkdir(ctx context.Context, name string, perm os.FileMode) e
 }
 
 func (d *deadPropFS) Stat(ctx context.Context, name string) (os.FileInfo, error) {
-	return webdav.Dir(d.root).Stat(ctx, name)
+	fi, err := webdav.Dir(d.root).Stat(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	return wrapETag(fi), nil
 }
 
 func (d *deadPropFS) OpenFile(ctx context.Context, name string, flag int, perm os.FileMode) (webdav.File, error) {
@@ -223,6 +227,15 @@ type deadPropFile struct {
 }
 
 var _ webdav.DeadPropsHolder = (*deadPropFile)(nil)
+
+// Stat 包一层 ETager，使 GET/HEAD 与 PROPFIND 取到的 ETag 与条件比较同源。
+func (f *deadPropFile) Stat() (os.FileInfo, error) {
+	fi, err := f.File.Stat()
+	if err != nil {
+		return nil, err
+	}
+	return wrapETag(fi), nil
+}
 
 func (f *deadPropFile) DeadProps() (map[xml.Name]webdav.Property, error) {
 	return f.fs.loadProps(f.key)
