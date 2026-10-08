@@ -70,6 +70,7 @@ docs/           需求、选型与验收记录
 |---|---|---|
 | `AUTH_MODE` | `builtin` | 管理端认证模式，取值 `builtin` 或 `sso` |
 | `CORS_ORIGINS` | （空，关闭） | 跨域白名单的**首次运行默认值**，逗号分隔，精确匹配 `scheme://host[:port]`；启动后请在管理页面的「跨域白名单（CORS）」里维护 |
+| `WEBDAV_PRECONDITIONS` | `enforce` | WebDAV 条件请求（`If-Match` / `If-None-Match`）开关：`enforce` 拒绝不满足的条件（`412`），`log` 只评估并记日志、不拒绝，`off` 完全关闭评估 |
 
 - `builtin`：自带管理员口令，`/admin` 输入口令登录，使用签名 cookie 会话（12 小时）。
 - `sso`：不使用自带口令登录，管理端身份取自网关注入的 `X-Auth-User`；缺失或为空返回 `401 JSON`，不会回退到 cookie。仅当 davbox 只监听回环、且该请求头由网关注入并对外剥离时才可使用。
