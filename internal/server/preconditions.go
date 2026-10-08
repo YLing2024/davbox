@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -70,7 +71,12 @@ func (s *Server) guardPreconditions(w http.ResponseWriter, r *http.Request, acct
 		return func() {}, true
 	}
 
-	rel, fsPath := preconditionTarget(acct, user, r.URL.Path)
+	rel, fsPath, ok := preconditionTarget(acct, user, r.URL.Path)
+	if !ok {
+		// 越界路径语义上是非法请求，不做前置拒绝也不持锁，交给库按原逻辑处理。
+		s.logf("webdav 条件评估已跳过：路径越界 %s", r.URL.Path)
+		return func() {}, true
+	}
 
 	if s.precond == modeLog {
 		if reject, reason := s.evaluatePreconditions(r, fsPath); reject {
@@ -96,14 +102,37 @@ func (s *Server) guardPreconditions(w http.ResponseWriter, r *http.Request, acct
 	return release, true
 }
 
+// normalizeRel 以 slash 语义规范化账号内相对路径，并判断是否仍在账号 root 之内。
+// 返回规范化后的相对路径与是否在界内；root 本身（rel == ""）合法。
+// 逃出 root（.. 或 ../…）时第二返回值为 false。
+func normalizeRel(rel string) (string, bool) {
+	if rel == "" {
+		return "", true
+	}
+	cleaned := path.Clean(rel)
+	switch {
+	case cleaned == ".":
+		return "", true
+	case cleaned == "..", strings.HasPrefix(cleaned, "../"):
+		return cleaned, false
+	default:
+		return cleaned, true
+	}
+}
+
 // preconditionTarget 把请求路径换算成相对账号 root 的路径与真实文件系统路径。
-func preconditionTarget(acct account.Account, user, urlPath string) (rel, fsPath string) {
-	rel = strings.TrimPrefix(urlPath, "/"+user+"/")
+// 第二返回值 ok 为 false 表示规范化后逃出了账号 root。
+func preconditionTarget(acct account.Account, user, urlPath string) (rel, fsPath string, ok bool) {
+	rel, ok = normalizeRel(strings.TrimPrefix(urlPath, "/"+user+"/"))
+	if !ok {
+		return rel, "", false
+	}
 	fsPath = filepath.Join(acct.Root, filepath.FromSlash(rel))
-	return rel, fsPath
+	return rel, fsPath, true
 }
 
 // destinationRel 解析 MOVE/COPY 的 Destination，返回相对同账号 root 的路径。
+// 越界（逃出账号 root）时返回 false，使其不参与加锁。
 func destinationRel(r *http.Request, user string) (string, bool) {
 	hdr := r.Header.Get("Destination")
 	if hdr == "" {
@@ -117,7 +146,11 @@ func destinationRel(r *http.Request, user string) (string, bool) {
 	if !strings.HasPrefix(u.Path, prefix) {
 		return "", false
 	}
-	return strings.TrimPrefix(u.Path, prefix), true
+	rel, ok := normalizeRel(strings.TrimPrefix(u.Path, prefix))
+	if !ok {
+		return "", false
+	}
+	return rel, true
 }
 
 // evaluatePreconditions 按 RFC 9110 评估 If-Match / If-None-Match。
