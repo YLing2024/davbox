@@ -78,6 +78,14 @@ func (s *Server) handleDAV(w http.ResponseWriter, r *http.Request, user string) 
 			}
 		},
 	}
+
+	// 条件请求评估与写入在同一把按 (账号, 路径) 的锁内完成，防止丢更新。
+	release, ok := s.guardPreconditions(w, r, acct, user)
+	if !ok {
+		return
+	}
+	defer release()
+
 	h.ServeHTTP(w, r)
 }
 

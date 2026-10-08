@@ -4,6 +4,7 @@ package server
 import (
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -28,6 +29,8 @@ type Config struct {
 	CORS *CORS
 	// Settings 是持久化设置；非 nil 时以其当前值初始化 CORS，并在保存时热更新。
 	Settings *settings.Store
+	// Preconditions 是 WEBDAV_PRECONDITIONS 的原始取值；空按 enforce 处理。
+	Preconditions string
 }
 
 // Server 持有全部运行期状态。
@@ -45,11 +48,19 @@ type Server struct {
 	davMu sync.Mutex
 	locks map[string]webdav.LockSystem
 
+	precond   preconditionMode
+	pathLocks *keyedMutex
+	logf      func(format string, v ...any)
+
 	usage *usageCache
 }
 
 // New 构造服务器。
 func New(cfg Config) *Server {
+	precond, valid := parsePreconditionMode(cfg.Preconditions)
+	if !valid {
+		log.Printf("WEBDAV_PRECONDITIONS=%q 非法，按 enforce 处理", cfg.Preconditions)
+	}
 	s := &Server{
 		dataDir:   cfg.DataDir,
 		store:     cfg.Store,
@@ -59,6 +70,9 @@ func New(cfg Config) *Server {
 		cors:      cfg.CORS,
 		settings:  cfg.Settings,
 		locks:     map[string]webdav.LockSystem{},
+		precond:   precond,
+		pathLocks: newKeyedMutex(),
+		logf:      log.Printf,
 		usage:     newUsageCache(30 * time.Second),
 	}
 	// settings.json 优先；无该键时 Open 已用 CORS_ORIGINS 填充默认值。

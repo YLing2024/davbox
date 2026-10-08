@@ -57,12 +57,13 @@ func main() {
 	}
 
 	srv := server.New(server.Config{
-		DataDir:   *dataDir,
-		Store:     store,
-		AdminHash: adminHash,
-		Signer:    auth.NewSigner(secret),
-		AuthMode:  authMode,
-		Settings:  sett,
+		DataDir:       *dataDir,
+		Store:         store,
+		AdminHash:     adminHash,
+		Signer:        auth.NewSigner(secret),
+		AuthMode:      authMode,
+		Settings:      sett,
+		Preconditions: os.Getenv("WEBDAV_PRECONDITIONS"),
 	})
 
 	httpServer := &http.Server{
