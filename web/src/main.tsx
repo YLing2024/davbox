@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App as AntApp, ConfigProvider, theme } from 'antd'
-import zhCN from 'antd/locale/zh_CN'
+import zhCN from 'antd/es/locale/zh_CN'
 import { AdminPage } from './admin/AdminPage'
 import { ClientPage } from './client/ClientPage'
 import { useThemeMode } from './theme'
