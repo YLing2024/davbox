@@ -7,7 +7,13 @@
 - `sso` 只信任网关注入的 `X-Auth-User`（缺失或空 → `401 JSON`），不自行解析或校验 cookie/JWT；**仅当 davbox 只监听回环、且由网关注入并剥离该请求头时才可使用**。
 - **协议端点永远保留自带账号体系**：WebDAV 数据面 `/<账号名>/...` 与应用账号（`/api/client/*`）走各自的 Basic / 口令认证，两种模式下都不受 `AUTH_MODE` 影响。
 
+## 前端设计语言
+
+- 管理端（`web/`）一律使用 **Ant Design 5 默认设计语言**：主色 `#1677ff`、圆角 6px、系统字体栈、组件默认样式。
+- `ConfigProvider.theme` **只切换 `algorithm`**（浅色 `defaultAlgorithm` / 深色 `darkAlgorithm`），**不得**把自定义配色映射进 antd token。
+- 主题三态（自动 / 亮色 / 暗色）按 `docs/REQUIREMENTS-theme-switcher.md` 执行：`localStorage` 键 `theme_mode`，`auto` 实时跟随系统，首屏内联脚本防闪白。
+
 ## 其他
 
 - 源码、配置、文档里**不得出现真实域名、私有 IP、私有路径或真实口令**；示例一律用 `example.com`。
-- 新增依赖须经确认；不得引入 web 框架、ORM、日志库或前端 UI/路由/状态库。
+- 新增依赖须经确认；后端不得引入 web 框架、ORM 或日志库；前端除 `antd` 与图表库 `echarts` 外，不得再引入其它 UI / 路由 / 状态库。

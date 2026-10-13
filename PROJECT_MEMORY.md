@@ -29,7 +29,7 @@
 ## 技术选型
 
 见 `docs/DECISIONS.md`（含全部被否方案与当时的实测证据）。
-要点：Go + `golang.org/x/net/webdav`（官方，7543 行实现 / 4275 行测试）+ React/Vite/TS 内嵌 + JSON 账号 + 单静态二进制。
+要点：Go + `golang.org/x/net/webdav`（官方，7543 行实现 / 4275 行测试）+ React/Vite/TS 内嵌 + JSON 账号 + 单静态二进制。管理端 UI 用 Ant Design 5 默认设计语言（`ConfigProvider` 只切 `algorithm`，三态主题 `theme_mode`）。
 
 ## 部署
 

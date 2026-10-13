@@ -17,6 +17,7 @@ The gap needed is only a thin layer: **minimal account management + trustworthy 
 - **One app, one account, one directory**: each account sees only its own root directory, and cross-account access is always denied; path escapes (`../`, encoded `%2e`, backslashes, null bytes) are always `400`
 - **Admin page**: add / disable / delete accounts, change passwords, view each account's directory and usage, and copy connection info (address + username + password) in one click
 - **Client page**: after logging in, browse / upload (including drag and drop) / download / rename / create folder / delete
+- **Unified design language**: the admin UI is built on Ant Design 5 (primary `#1677ff`, 6px radius, system font stack), with an Auto / Light / Dark theme switch in the header that follows the OS and remembers the choice
 - **Read-only accounts**: all write verbs are `403`, reads work normally
 - **Official protocol implementation**: `golang.org/x/net/webdav` (including `LOCK` / `UNLOCK` / `COPY` / `MOVE` / dead property persistence), not a home-grown protocol
 - **Single-binary delivery**: the frontend is embedded into the binary with `//go:embed`, with no external runtime and no database
