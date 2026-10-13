@@ -1,5 +1,23 @@
-import { useCallback, useEffect, useReducer, useRef, useState, Fragment, type FormEvent } from 'react'
+import { useCallback, useEffect, useReducer, useRef, useState, type ReactNode } from 'react'
+import {
+  Alert,
+  App as AntApp,
+  Button,
+  Card,
+  Checkbox,
+  Descriptions,
+  Form,
+  Input,
+  Layout,
+  Modal,
+  Space,
+  Switch,
+  Table,
+  Typography,
+  type TableProps,
+} from 'antd'
 import { adminApi, ApiError, type AccountView, type AuthMode, type ConnInfo } from '../api'
+import { AppHeader } from '../appChrome'
 import { parseCorsOrigins } from '../corsOrigins'
 import { formatSize } from '../format'
 import { initialSettingsModalState, settingsModalReducer } from '../settingsModal'
@@ -13,6 +31,8 @@ import {
   IconSettings,
   IconTrash,
 } from '../icons'
+
+const { Content } = Layout
 
 async function copyText(text: string): Promise<boolean> {
   try {
@@ -46,26 +66,35 @@ function redirectToGatewayLogin() {
   window.location.href = `/_auth/login?next=${encodeURIComponent(next)}`
 }
 
-function Switch({
-  checked,
-  onChange,
-  disabled,
+function AdminShell({
+  actions,
+  centered,
+  children,
 }: {
-  checked: boolean
-  onChange: () => void
-  disabled?: boolean
+  actions?: ReactNode
+  centered?: boolean
+  children: ReactNode
 }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      className={checked ? 'switch on' : 'switch'}
-      onClick={onChange}
-      disabled={disabled}
-    >
-      <span className="knob" />
-    </button>
+    <Layout style={{ minHeight: '100vh' }}>
+      <AppHeader title="davbox" tag="管理" actions={actions} />
+      {centered ? (
+        <Content
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '64px 16px',
+          }}
+        >
+          {children}
+        </Content>
+      ) : (
+        <Content style={{ padding: '24px 16px 64px' }}>
+          <div style={{ maxWidth: 1040, margin: '0 auto' }}>{children}</div>
+        </Content>
+      )}
+    </Layout>
   )
 }
 
@@ -86,49 +115,52 @@ function ConnModal({ conn, onClose }: { conn: ConnInfo; onClose: () => void }) {
   ]
 
   return (
-    <div className="overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>{'连接信息'}</h2>
-        <dl className="conn">
-          {fields.map((field) => (
-            <Fragment key={field.key}>
-              <dt>{field.label}</dt>
-              <dd>{field.value}</dd>
-              <dd className="conn-copy">
-                <button
-                  type="button"
-                  className="icon-btn"
-                  aria-label={copied[field.key] ? '已复制' : `复制${field.label}`}
-                  title={copied[field.key] ? '已复制' : `复制${field.label}`}
-                  onClick={() => copyItem(field.key, field.value)}
-                >
-                  {copied[field.key] ? <IconCheck /> : <IconCopy />}
-                </button>
-              </dd>
-            </Fragment>
-          ))}
-        </dl>
-        <p className="hint">把地址填进 App 的 WebDAV 设置。</p>
-        <div className="modal-actions">
-          <button
-            type="button"
-            className="btn primary"
-            onClick={async () => {
-              if (await copyText(connText(conn))) {
-                setCopied((state) => ({ ...state, all: true }))
-                window.setTimeout(() => setCopied((state) => ({ ...state, all: false })), 1600)
-              }
-            }}
-          >
-            <IconCopy />
-            {copied.all ? '已复制' : '复制连接信息'}
-          </button>
-          <button type="button" className="btn" onClick={onClose}>
-            关闭
-          </button>
-        </div>
-      </div>
-    </div>
+    <Modal
+      open
+      title="连接信息"
+      onCancel={onClose}
+      footer={[
+        <Button
+          key="copy"
+          type="primary"
+          icon={<IconCopy />}
+          onClick={async () => {
+            if (await copyText(connText(conn))) {
+              setCopied((state) => ({ ...state, all: true }))
+              window.setTimeout(() => setCopied((state) => ({ ...state, all: false })), 1600)
+            }
+          }}
+        >
+          {copied.all ? '已复制' : '复制连接信息'}
+        </Button>,
+        <Button key="close" onClick={onClose}>
+          关闭
+        </Button>,
+      ]}
+    >
+      <Descriptions column={1} size="small" bordered>
+        {fields.map((field) => (
+          <Descriptions.Item key={field.key} label={field.label}>
+            <Space style={{ width: '100%', justifyContent: 'space-between' }} align="start">
+              <Typography.Text code style={{ wordBreak: 'break-all' }}>
+                {field.value}
+              </Typography.Text>
+              <Button
+                type="text"
+                size="small"
+                aria-label={copied[field.key] ? '已复制' : `复制${field.label}`}
+                title={copied[field.key] ? '已复制' : `复制${field.label}`}
+                icon={copied[field.key] ? <IconCheck /> : <IconCopy />}
+                onClick={() => copyItem(field.key, field.value)}
+              />
+            </Space>
+          </Descriptions.Item>
+        ))}
+      </Descriptions>
+      <Typography.Paragraph type="secondary" style={{ margin: '16px 0 0' }}>
+        把地址填进 App 的 WebDAV 设置。
+      </Typography.Paragraph>
+    </Modal>
   )
 }
 
@@ -150,40 +182,45 @@ function SettingsModal({
   onClose: () => void
 }) {
   return (
-    <div className="overlay" onClick={onClose}>
-      <div className="modal settings-modal" onClick={(e) => e.stopPropagation()}>
-        <h2>设置</h2>
-        <div className="field">
-          <label htmlFor="cors-origins">跨域白名单（CORS）</label>
-          <p className="hint">
-            允许这些来源的网页在浏览器里直接访问本 WebDAV。留空表示关闭跨域。请只填你自己的前端域名。
-          </p>
-          <textarea
-            id="cors-origins"
-            className="cors-input"
-            rows={4}
-            spellCheck={false}
-            value={text}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder="https://app.example.com"
-          />
-          {error ? <p className="error">{error}</p> : null}
-        </div>
-        {saved ? <p className="ok">已保存并即时生效</p> : null}
-        <div className="modal-actions">
-          <button type="button" className="btn primary" onClick={onSave} disabled={saving}>
-            保存
-          </button>
-          <button type="button" className="btn" onClick={onClose}>
-            关闭
-          </button>
-        </div>
-      </div>
-    </div>
+    <Modal
+      open
+      title="设置"
+      onCancel={onClose}
+      footer={[
+        <Button key="save" type="primary" loading={saving} onClick={onSave}>
+          保存
+        </Button>,
+        <Button key="close" onClick={onClose}>
+          关闭
+        </Button>,
+      ]}
+    >
+      <label htmlFor="cors-origins" style={{ display: 'block' }}>
+        <Typography.Text>跨域白名单（CORS）</Typography.Text>
+      </label>
+      <Typography.Paragraph type="secondary" style={{ margin: '4px 0 8px' }}>
+        允许这些来源的网页在浏览器里直接访问本 WebDAV。留空表示关闭跨域。请只填你自己的前端域名。
+      </Typography.Paragraph>
+      <Input.TextArea
+        id="cors-origins"
+        rows={4}
+        spellCheck={false}
+        value={text}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="https://app.example.com"
+      />
+      {error ? <Alert type="error" message={error} showIcon style={{ marginTop: 12 }} /> : null}
+      {saved ? (
+        <Typography.Text type="success" style={{ display: 'block', marginTop: 12 }}>
+          已保存并即时生效
+        </Typography.Text>
+      ) : null}
+    </Modal>
   )
 }
 
 export function AdminPage() {
+  const { modal } = AntApp.useApp()
   const [mode, setMode] = useState<AuthMode | null>(null)
   const [ready, setReady] = useState(false)
   const [authed, setAuthed] = useState(false)
@@ -269,8 +306,7 @@ export function AdminPage() {
     }
   }
 
-  const login = (e: FormEvent) => {
-    e.preventDefault()
+  const login = () => {
     void run(async () => {
       await adminApi.login(password)
       setPassword('')
@@ -293,8 +329,7 @@ export function AdminPage() {
     })
   }
 
-  const createAccount = (e: FormEvent) => {
-    e.preventDefault()
+  const createAccount = () => {
     const user = newUser.trim()
     if (!user) return
     void run(async () => {
@@ -315,10 +350,13 @@ export function AdminPage() {
   }
 
   const rotate = (user: string) => {
-    if (!window.confirm(`重新生成「${user}」的口令？旧口令会立即失效。`)) return
-    void run(async () => {
-      const info = await adminApi.rotate(user)
-      setConn({ url: `${window.location.origin}/${info.user}`, user: info.user, pass: info.pass })
+    modal.confirm({
+      title: `重新生成「${user}」的口令？旧口令会立即失效。`,
+      onOk: () =>
+        run(async () => {
+          const info = await adminApi.rotate(user)
+          setConn({ url: `${window.location.origin}/${info.user}`, user: info.user, pass: info.pass })
+        }),
     })
   }
 
@@ -330,10 +368,13 @@ export function AdminPage() {
   }
 
   const remove = (user: string) => {
-    if (!window.confirm(`删除账号「${user}」？磁盘上的目录会保留。`)) return
-    void run(async () => {
-      await adminApi.remove(user)
-      await load()
+    modal.confirm({
+      title: `删除账号「${user}」？磁盘上的目录会保留。`,
+      onOk: () =>
+        run(async () => {
+          await adminApi.remove(user)
+          await load()
+        }),
     })
   }
 
@@ -371,9 +412,9 @@ export function AdminPage() {
 
   if (!ready || mode === null) {
     return (
-      <div className="page">
-        <div className="center-note">加载中</div>
-      </div>
+      <AdminShell centered>
+        <Typography.Text type="secondary">加载中</Typography.Text>
+      </AdminShell>
     )
   }
 
@@ -381,152 +422,187 @@ export function AdminPage() {
     // SSO 模式不显示口令输入框；未认证时已跳转网关登录页。
     if (mode === 'sso') {
       return (
-        <div className="page">
-          <div className="center-note">正在跳转登录</div>
-        </div>
+        <AdminShell centered>
+          <Typography.Text type="secondary">正在跳转登录</Typography.Text>
+        </AdminShell>
       )
     }
     return (
-      <div className="page narrow">
-        <header className="masthead">
-          <span className="wordmark">davbox</span>
-          <span className="tag">管理</span>
-        </header>
-        <form className="login" onSubmit={login}>
-          <label htmlFor="admin-pass">管理员口令</label>
-          <input
-            id="admin-pass"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            autoFocus
-          />
-          {error ? <p className="error">{error}</p> : null}
-          <button type="submit" className="btn primary wide" disabled={busy}>
-            进入
-          </button>
-        </form>
-      </div>
+      <AdminShell centered>
+        <Card style={{ width: 380, maxWidth: '100%' }}>
+          <Form layout="vertical" onFinish={login}>
+            <Form.Item label="管理员口令" style={{ marginBottom: 16 }}>
+              <Input.Password
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                autoFocus
+              />
+            </Form.Item>
+            {error ? (
+              <Form.Item style={{ marginBottom: 16 }}>
+                <Alert type="error" message={error} showIcon />
+              </Form.Item>
+            ) : null}
+            <Form.Item style={{ marginBottom: 0 }}>
+              <Button type="primary" htmlType="submit" block loading={busy}>
+                进入
+              </Button>
+            </Form.Item>
+          </Form>
+        </Card>
+      </AdminShell>
     )
   }
 
-  return (
-    <div className="page">
-      <header className="masthead">
-        <span className="wordmark">davbox</span>
-        <span className="tag">管理</span>
-        <span className="spacer" />
-        <button type="button" className="btn ghost" onClick={openSettings}>
-          <IconSettings />
-          设置
-        </button>
-        <button type="button" className="btn ghost" onClick={logout}>
-          <IconLogout />
-          退出
-        </button>
-      </header>
+  const columns: TableProps<AccountView>['columns'] = [
+    {
+      title: '应用',
+      dataIndex: 'user',
+      key: 'user',
+      render: (_, a) => (
+        <Space size={8}>
+          <Typography.Text code>{a.user}</Typography.Text>
+          {a.note ? (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {a.note}
+            </Typography.Text>
+          ) : null}
+        </Space>
+      ),
+    },
+    {
+      title: '目录',
+      dataIndex: 'root',
+      key: 'root',
+      render: (_, a) => (
+        <Typography.Text
+          code
+          style={{
+            display: 'inline-block',
+            maxWidth: 260,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            verticalAlign: 'bottom',
+          }}
+        >
+          {a.root}
+        </Typography.Text>
+      ),
+    },
+    {
+      title: '已用',
+      dataIndex: 'usedBytes',
+      key: 'used',
+      render: (_, a) => <Typography.Text type="secondary">{formatSize(a.usedBytes)}</Typography.Text>,
+    },
+    {
+      title: '只读',
+      key: 'readonly',
+      width: 72,
+      render: (_, a) => (
+        <Switch size="small" checked={a.readonly} onChange={() => patch(a.user, { readonly: !a.readonly })} />
+      ),
+    },
+    {
+      title: '停用',
+      key: 'disabled',
+      width: 72,
+      render: (_, a) => (
+        <Switch size="small" checked={a.disabled} onChange={() => patch(a.user, { disabled: !a.disabled })} />
+      ),
+    },
+    {
+      title: '操作',
+      key: 'ops',
+      width: 180,
+      align: 'right',
+      render: (_, a) => (
+        <Space size={0}>
+          <Button
+            type="text"
+            title="复制连接信息"
+            icon={<IconCopy />}
+            disabled={busy}
+            onClick={() => showConn(a.user)}
+          />
+          <Button type="text" title="换口令" icon={<IconKey />} disabled={busy} onClick={() => rotate(a.user)} />
+          <Button
+            type="text"
+            title={a.disabled ? '启用' : '停用'}
+            icon={<IconPower />}
+            disabled={busy}
+            onClick={() => patch(a.user, { disabled: !a.disabled })}
+          />
+          <Button
+            type="text"
+            danger
+            title="删除"
+            icon={<IconTrash />}
+            disabled={busy}
+            onClick={() => remove(a.user)}
+          />
+        </Space>
+      ),
+    },
+  ]
 
-      <div className="toolbar">
-        <button type="button" className="btn primary" onClick={() => setShowNew((v) => !v)}>
-          <IconPlus />
+  const headerActions = (
+    <>
+      <Button icon={<IconSettings />} onClick={openSettings}>
+        设置
+      </Button>
+      <Button icon={<IconLogout />} onClick={logout}>
+        退出
+      </Button>
+    </>
+  )
+
+  return (
+    <AdminShell actions={headerActions}>
+      <Space style={{ marginBottom: 16 }}>
+        <Button type="primary" icon={<IconPlus />} onClick={() => setShowNew((v) => !v)}>
           新建应用
-        </button>
-      </div>
+        </Button>
+      </Space>
 
       {showNew ? (
-        <form className="panel new-app" onSubmit={createAccount}>
-          <div className="field">
-            <label htmlFor="new-user">应用名</label>
-            <input
-              id="new-user"
-              value={newUser}
-              onChange={(e) => setNewUser(e.target.value)}
-              placeholder="小写字母、数字、下划线或连字符"
-              autoFocus
-            />
-          </div>
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={newReadonly}
-              onChange={(e) => setNewReadonly(e.target.checked)}
-            />
-            只读
-          </label>
-          <button type="submit" className="btn primary" disabled={busy || !newUser.trim()}>
-            创建
-          </button>
-        </form>
+        <Card size="small" style={{ marginBottom: 16 }}>
+          <Form layout="inline" onFinish={createAccount}>
+            <Form.Item label="应用名" style={{ flex: 1, minWidth: 220 }}>
+              <Input
+                value={newUser}
+                onChange={(e) => setNewUser(e.target.value)}
+                placeholder="小写字母、数字、下划线或连字符"
+                autoFocus
+              />
+            </Form.Item>
+            <Form.Item>
+              <Checkbox checked={newReadonly} onChange={(e) => setNewReadonly(e.target.checked)}>
+                只读
+              </Checkbox>
+            </Form.Item>
+            <Form.Item>
+              <Button type="primary" htmlType="submit" disabled={busy || !newUser.trim()}>
+                创建
+              </Button>
+            </Form.Item>
+          </Form>
+        </Card>
       ) : null}
 
-      {error ? <p className="error">{error}</p> : null}
+      {error ? <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} /> : null}
 
-      <div className="list account-list">
-        <div className="row head">
-          <div>应用</div>
-          <div className="col-root">目录</div>
-          <div>已用</div>
-          <div>只读</div>
-          <div>停用</div>
-          <div className="col-ops">操作</div>
-        </div>
-        {accounts.length === 0 ? <div className="empty">还没有应用账号</div> : null}
-        {accounts.map((a) => (
-          <div className={a.disabled ? 'row muted' : 'row'} key={a.user}>
-            <div className="name">
-              <span className="mono">{a.user}</span>
-              {a.note ? <span className="note">{a.note}</span> : null}
-            </div>
-            <div className="col-root mono ellipsis">{a.root}</div>
-            <div className="mono">{formatSize(a.usedBytes)}</div>
-            <div>
-              <Switch checked={a.readonly} onChange={() => patch(a.user, { readonly: !a.readonly })} />
-            </div>
-            <div>
-              <Switch checked={a.disabled} onChange={() => patch(a.user, { disabled: !a.disabled })} />
-            </div>
-            <div className="ops">
-              <button
-                type="button"
-                className="icon-btn"
-                title="复制连接信息"
-                onClick={() => showConn(a.user)}
-                disabled={busy}
-              >
-                <IconCopy />
-              </button>
-              <button
-                type="button"
-                className="icon-btn"
-                title="换口令"
-                onClick={() => rotate(a.user)}
-                disabled={busy}
-              >
-                <IconKey />
-              </button>
-              <button
-                type="button"
-                className="icon-btn"
-                title={a.disabled ? '启用' : '停用'}
-                onClick={() => patch(a.user, { disabled: !a.disabled })}
-                disabled={busy}
-              >
-                <IconPower />
-              </button>
-              <button
-                type="button"
-                className="icon-btn danger"
-                title="删除"
-                onClick={() => remove(a.user)}
-                disabled={busy}
-              >
-                <IconTrash />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+      <Table<AccountView>
+        rowKey="user"
+        columns={columns}
+        dataSource={accounts}
+        pagination={false}
+        size="middle"
+        locale={{ emptyText: '还没有应用账号' }}
+        rowClassName={(a) => (a.disabled ? 'davbox-row-disabled' : '')}
+      />
 
       {conn ? <ConnModal conn={conn} onClose={() => setConn(null)} /> : null}
 
@@ -541,6 +617,6 @@ export function AdminPage() {
           onClose={() => dispatchSettings({ type: 'close' })}
         />
       ) : null}
-    </div>
+    </AdminShell>
   )
 }
