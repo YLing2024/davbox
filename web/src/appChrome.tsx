@@ -85,13 +85,7 @@ export function AppHeader({
       {narrow ? (
         <>
           <Button type="text" aria-label="菜单" icon={<IconMenu />} onClick={() => setOpen(true)} />
-          <Drawer
-            open={open}
-            placement="right"
-            width={280}
-            onClose={() => setOpen(false)}
-            title="菜单"
-          >
+          <Drawer open={open} placement="right" width={280} onClose={() => setOpen(false)}>
             <Space direction="vertical" size="middle" style={{ width: '100%' }}>
               <ThemeToggle block />
               {actions}
