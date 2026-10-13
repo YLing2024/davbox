@@ -431,8 +431,9 @@ export function AdminPage() {
       <AdminShell centered>
         <Card style={{ width: 380, maxWidth: '100%' }}>
           <Form layout="vertical" onFinish={login}>
-            <Form.Item label="管理员口令" style={{ marginBottom: 16 }}>
+            <Form.Item label="管理员口令" htmlFor="admin-pass" style={{ marginBottom: 16 }}>
               <Input.Password
+                id="admin-pass"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
@@ -570,8 +571,9 @@ export function AdminPage() {
       {showNew ? (
         <Card size="small" style={{ marginBottom: 16 }}>
           <Form layout="inline" onFinish={createAccount}>
-            <Form.Item label="应用名" style={{ flex: 1, minWidth: 220 }}>
+            <Form.Item label="应用名" htmlFor="new-user" style={{ flex: 1, minWidth: 220 }}>
               <Input
+                id="new-user"
                 value={newUser}
                 onChange={(e) => setNewUser(e.target.value)}
                 placeholder="小写字母、数字、下划线或连字符"
@@ -600,6 +602,7 @@ export function AdminPage() {
         dataSource={accounts}
         pagination={false}
         size="middle"
+        scroll={{ x: 'max-content' }}
         locale={{ emptyText: '还没有应用账号' }}
         rowClassName={(a) => (a.disabled ? 'davbox-row-disabled' : '')}
       />

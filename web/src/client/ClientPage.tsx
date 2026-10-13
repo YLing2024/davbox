@@ -214,16 +214,18 @@ export function ClientPage() {
         <div style={{ display: 'flex', justifyContent: 'center' }}>
           <Card style={{ width: 380, maxWidth: '100%' }}>
             <Form layout="vertical" onFinish={login}>
-              <Form.Item label="应用账号" style={{ marginBottom: 16 }}>
+              <Form.Item label="应用账号" htmlFor="client-user" style={{ marginBottom: 16 }}>
                 <Input
+                  id="client-user"
                   value={user}
                   onChange={(e) => setUser(e.target.value)}
                   autoComplete="username"
                   autoFocus
                 />
               </Form.Item>
-              <Form.Item label="口令" style={{ marginBottom: 16 }}>
+              <Form.Item label="口令" htmlFor="client-pass" style={{ marginBottom: 16 }}>
                 <Input.Password
+                  id="client-pass"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="current-password"
@@ -390,6 +392,7 @@ export function ClientPage() {
           dataSource={entries}
           pagination={false}
           size="middle"
+          scroll={{ x: 'max-content' }}
           locale={{ emptyText: '这里还没有文件' }}
         />
       </div>
