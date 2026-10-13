@@ -140,6 +140,14 @@ export function IconLogout({ size = 16 }: IconProps) {
   )
 }
 
+export function IconMenu({ size = 16 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <path d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+  )
+}
+
 export function IconChevron({ size = 16 }: IconProps) {
   return (
     <svg {...base(size)}>

@@ -4,6 +4,28 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
+    <script>
+      // 首屏绘制前应用主题，避免刷新时闪白/闪暗。
+      (function () {
+        try {
+          var mode = window.localStorage.getItem('theme_mode')
+          if (mode !== 'light' && mode !== 'dark') mode = 'auto'
+          var dark =
+            mode === 'dark' ||
+            (mode === 'auto' &&
+              window.matchMedia &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches)
+          var resolved = dark ? 'dark' : 'light'
+          var root = document.documentElement
+          root.setAttribute('data-theme', resolved)
+          root.style.colorScheme = resolved
+          var meta = document.querySelector('meta[name="color-scheme"]')
+          if (meta) meta.setAttribute('content', resolved)
+        } catch (err) {
+          /* 忽略，交给运行时兜底 */
+        }
+      })()
+    </script>
     <link rel="icon" href="data:," />
     <title>davbox</title>
   </head>
