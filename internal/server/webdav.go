@@ -1,9 +1,13 @@
 package server
 
 import (
+	"bufio"
 	"log"
+	"net"
 	"net/http"
+	"os"
 	"path/filepath"
+	"strings"
 
 	"golang.org/x/net/webdav"
 
@@ -50,8 +54,55 @@ func (s *Server) forgetLocks(user string) {
 	delete(s.locks, user)
 }
 
+// accessLogEnabled 由 DAVBOX_ACCESS_LOG 控制（1/on 开，默认关）。打开时
+// 已认证的 WebDAV 数据面请求全量落 access log（journal），成功失败都记。
+// 与 Logger 不同，这里只记方法、路径、返回码、来源 IP 与 UA，绝不触碰
+// Authorization。平时默认关，无 journal 噪音；排查客户端兼容性时打开。
+func accessLogEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("DAVBOX_ACCESS_LOG"))) {
+	case "1", "on", "true", "yes":
+		return true
+	}
+	return false
+}
+
+// accessWriter 包一层 ResponseWriter 以拿到最终状态码；Flush/Hijack 如实透传。
+type accessWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (a *accessWriter) WriteHeader(code int) {
+	a.status = code
+	a.ResponseWriter.WriteHeader(code)
+}
+
+func (a *accessWriter) Flush() {
+	if f, ok := a.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+func (a *accessWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if h, ok := a.ResponseWriter.(http.Hijacker); ok {
+		return h.Hijack()
+	}
+	return nil, nil, http.ErrNotSupported
+}
+
 // handleDAV 完成认证、只读检查后交给官方 webdav.Handler。
+// 兼容性：一木记账等 App 用不带尾斜杠的 `/<账号>` 甚至 `/<账号>/<目录>`
+// 做 PROPFIND 探测，而官方 webdav.Handler 的 Prefix 要求带斜杠，否则
+// prefix mismatch → 404。这里在进入 Handler 前只对“恰好等于 /<账号>”
+// 的路径补上尾斜杠（账号根集合），子路径一律不动，避免改变文件语义。
 func (s *Server) handleDAV(w http.ResponseWriter, r *http.Request, user string) {
+	// 兼容性重写：`PROPFIND /<账号>`（无尾斜杠）补成 `/<账号>/`。
+	// 仅当路径恰好是账号根时才改写；子路径一律不动。
+	if r.URL.Path == "/"+user {
+		r2 := r.Clone(r.Context())
+		r2.URL.Path = "/" + user + "/"
+		r = r2
+	}
 	authUser, pass, ok := r.BasicAuth()
 	if !ok || authUser != user {
 		writeAuthChallenge(w)
@@ -65,6 +116,15 @@ func (s *Server) handleDAV(w http.ResponseWriter, r *http.Request, user string) 
 	if acct.Readonly && isWriteMethod(r.Method) {
 		writeError(w, http.StatusForbidden, "只读账号")
 		return
+	}
+
+	if accessLogEnabled() {
+		aw := &accessWriter{ResponseWriter: w, status: http.StatusOK}
+		defer func() {
+			log.Printf("access %s %s -> %d, from %s, ua %q",
+				r.Method, r.URL.EscapedPath(), aw.status, r.RemoteAddr, r.UserAgent())
+		}()
+		w = aw
 	}
 
 	h := &webdav.Handler{
