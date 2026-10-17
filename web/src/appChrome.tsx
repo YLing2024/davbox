@@ -14,6 +14,12 @@ const THEME_OPTIONS: { label: string; value: ThemeMode }[] = [
   { label: '暗色', value: 'dark' },
 ]
 
+/**
+ * 主题三态切换控件（自动 / 亮色 / 暗色）。
+ *
+ * @param block - 是否占满容器宽度；抽屉与窄屏顶栏用 `true`，桌面顶栏用默认值 `false`。
+ * @remarks 取值来自 `theme.ts` 的 `useThemeMode()`，持久化键为 `localStorage.theme_mode`。
+ */
 export function ThemeToggle({ block = false }: { block?: boolean }) {
   const { mode, setMode } = useThemeMode()
   return (
@@ -40,6 +46,15 @@ function useIsNarrow(query = '(max-width: 767px)'): boolean {
   return narrow
 }
 
+/**
+ * 管理端 / 文件页共用的吸顶顶栏：品牌、当前账号、主题切换与页面操作。
+ *
+ * @param title - 品牌名（固定 `davbox`）。
+ * @param tag - 页面标识（`管理` / `文件`）。
+ * @param who - 已登录账号名；窄屏超长时省略显示。
+ * @param actions - 页面级操作按钮；窄屏收进右侧抽屉。
+ * @remarks 窄屏（<768px）把主题切换与 `actions` 收进抽屉，不隐藏入口。顶栏吸顶。
+ */
 export function AppHeader({
   title,
   tag,
@@ -77,7 +92,7 @@ export function AppHeader({
         {tag}
       </Text>
       {who ? (
-        <Text type="secondary" style={{ fontSize: 13, marginLeft: 4 }}>
+        <Text type="secondary" className="davbox-who" style={{ fontSize: 13, marginLeft: 4 }} title={who}>
           {who}
         </Text>
       ) : null}

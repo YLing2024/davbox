@@ -53,6 +53,11 @@ function ClientShell({ who, actions, children }: { who?: string; actions?: React
   )
 }
 
+/**
+ * 应用账号文件页：口令登录后浏览 / 上传（含拖拽）/ 下载 / 重命名 / 新建文件夹 / 删除。
+ *
+ * @remarks 数据来自 `/api/client/*`，鉴权为应用账号口令，不受 `AUTH_MODE` 影响。
+ */
 export function ClientPage() {
   const { modal } = AntApp.useApp()
   const [ready, setReady] = useState(false)
@@ -261,9 +266,13 @@ export function ClientPage() {
             {e.isDir ? <IconFolder /> : <IconFile />}
           </Typography.Text>
           {e.isDir ? (
-            <Typography.Link onClick={() => load(joinPath(path, e.name))}>{e.name}</Typography.Link>
+            <Typography.Link className="davbox-ellipsis" title={e.name} onClick={() => load(joinPath(path, e.name))}>
+              {e.name}
+            </Typography.Link>
           ) : (
             <Typography.Text
+              title={e.name}
+              className="davbox-ellipsis"
               style={{
                 display: 'inline-block',
                 maxWidth: 360,
@@ -303,7 +312,7 @@ export function ClientPage() {
       width: 150,
       align: 'right',
       render: (_, e) => (
-        <Space size={0}>
+        <Space size={0} className="davbox-actions">
           {e.isDir ? null : (
             <Button
               type="text"
@@ -351,7 +360,7 @@ export function ClientPage() {
         }))}
       />
 
-      <Space style={{ marginBottom: 16 }}>
+      <Space className="davbox-toolbar" style={{ marginBottom: 16 }}>
         <Button
           type="primary"
           icon={<IconUpload />}

@@ -219,6 +219,11 @@ function SettingsModal({
   )
 }
 
+/**
+ * 管理端页面：builtin 模式下渲染口令登录与账号列表，sso 模式下未认证时交回网关登录。
+ *
+ * @remarks 账号根目录与用量来自 `/api/admin/accounts`；侧边设置弹窗维护跨域白名单。
+ */
 export function AdminPage() {
   const { modal } = AntApp.useApp()
   const [mode, setMode] = useState<AuthMode | null>(null)
@@ -463,7 +468,9 @@ export function AdminPage() {
       key: 'user',
       render: (_, a) => (
         <Space size={8}>
-          <Typography.Text code>{a.user}</Typography.Text>
+          <Typography.Text code className="davbox-ellipsis" title={a.user}>
+            {a.user}
+          </Typography.Text>
           {a.note ? (
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
               {a.note}
@@ -479,6 +486,7 @@ export function AdminPage() {
       render: (_, a) => (
         <Typography.Text
           code
+          title={a.root}
           style={{
             display: 'inline-block',
             maxWidth: 260,
@@ -520,7 +528,7 @@ export function AdminPage() {
       width: 180,
       align: 'right',
       render: (_, a) => (
-        <Space size={0}>
+        <Space size={0} className="davbox-actions">
           <Button
             type="text"
             title="复制连接信息"
@@ -562,7 +570,7 @@ export function AdminPage() {
 
   return (
     <AdminShell actions={headerActions}>
-      <Space style={{ marginBottom: 16 }}>
+      <Space className="davbox-toolbar" style={{ marginBottom: 16 }}>
         <Button type="primary" icon={<IconPlus />} onClick={() => setShowNew((v) => !v)}>
           新建应用
         </Button>
