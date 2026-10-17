@@ -38,3 +38,124 @@ body:not([class*='ant-']) {
   outline: 1px dashed currentColor;
   outline-offset: 6px;
 }
+
+/*
+ * 窄屏 / 触摸设备（宽度 <992px 或 pointer: coarse）：
+ * 把主要操作与表单控件抬到可点尺寸，保证行内相邻操作间距，并放宽 antd 的行内 code 字号。
+ * 断点不命中「≥992px 且指针精确」的桌面环境，因此桌面观感逐像素不变。
+ */
+@media (max-width: 991px), (pointer: coarse) {
+  /* 主要操作（带文字的按钮）：高度 ≥44px */
+  .ant-btn:not(.ant-btn-icon-only) {
+    min-height: 44px;
+  }
+
+  /* 次要图标按钮：命中区 ≥40×40（要求 ≥32×32，留出余量） */
+  .ant-btn.ant-btn-icon-only {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  /* 抽屉里的主题三态、账表单里的复选框：命中区抬到 ≥32px */
+  .ant-segmented .ant-segmented-item {
+    min-height: 32px;
+  }
+
+  .ant-segmented .ant-segmented-item .ant-segmented-item-label {
+    min-height: 30px;
+    line-height: 30px;
+  }
+
+  .ant-checkbox-wrapper {
+    min-height: 32px;
+    align-items: center;
+  }
+
+  /* 表单控件：高度 ≥44px，避免 iOS 聚焦时放大整页靠字号（下一条） */
+  .ant-input,
+  .ant-input-affix-wrapper,
+  .ant-input-number,
+  .ant-picker,
+  .ant-select .ant-select-selector,
+  textarea.ant-input {
+    min-height: 44px;
+  }
+
+  /* affix 内层 input 由外层撑高即可，避免叠加 */
+  .ant-input-affix-wrapper .ant-input {
+    min-height: 0;
+  }
+
+  /* 表单控件字号 ≥16px；antd Select 需同时覆盖内层 selection 文本。
+     用 !important 压过 antd 的高特异性规则（如 affix 内层 input 的 font-size: inherit），
+     仅作用于本媒体查询命中的窄屏/触摸环境。 */
+  .ant-input,
+  .ant-input-number-input,
+  .ant-picker input,
+  .ant-select .ant-select-selector,
+  .ant-select .ant-select-selection-item,
+  .ant-select .ant-select-selection-placeholder,
+  .ant-select .ant-select-selection-search-input,
+  .ant-input-affix-wrapper,
+  .ant-input-affix-wrapper > input.ant-input,
+  .ant-input-affix-wrapper > textarea.ant-input {
+    font-size: 16px !important;
+  }
+
+  /* 单行 Select 增高后让选中项垂直居中（antd 内部行高按 32px 算） */
+  .ant-select-single .ant-select-selector .ant-select-selection-item,
+  .ant-select-single .ant-select-selector .ant-select-selection-placeholder {
+    line-height: 42px;
+  }
+
+  /* 行内相邻操作间距 ≥8px：表格操作列用 size={0} 的 Space，桌面保持 0 */
+  .davbox-actions {
+    column-gap: 8px !important;
+  }
+
+  /* 工具栏在窄屏换行，避免挤出横向滚动 */
+  .davbox-toolbar {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  /* antd 行内 code/kbd 默认 0.85em ≈ 11.9px，抬到 ≥12px */
+  .ant-typography code,
+  .ant-typography kbd {
+    font-size: 12px;
+  }
+
+  /* Switch 命中区放大到 ≥44px，但不改可见尺寸：
+     antd 开关的滑块几何依赖固定 track/handle 尺寸，直接改高宽会让滑块错位。 */
+  .ant-switch {
+    position: relative;
+  }
+
+  .ant-switch::after {
+    content: '';
+    position: absolute;
+    inset: -14px -8px;
+  }
+}
+
+/* 窄屏（不含触摸桌面）下长账号名/路径省略，避免撑破容器；桌面保持原样 */
+@media (max-width: 991px) {
+  .davbox-ellipsis {
+    display: inline-block;
+    /* 压过单元格里 360/260px 的行内 max-width，窄屏统一收到 160px */
+    max-width: 160px !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+  }
+
+  .davbox-who {
+    display: inline-block;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+  }
+}
