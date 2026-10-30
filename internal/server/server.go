@@ -125,7 +125,11 @@ func (s *Server) route(w http.ResponseWriter, r *http.Request) {
 		s.handleClient(w, r)
 	case decoded == "/" || decoded == "/admin" || decoded == "/admin/":
 		s.serveIndex(w, r)
-	case strings.HasPrefix(decoded, "/assets/"):
+	case strings.HasPrefix(decoded, "/assets/"),
+		strings.HasPrefix(decoded, "/icons/"),
+		decoded == "/favicon.svg",
+		decoded == "/favicon-32.png",
+		decoded == "/apple-touch-icon-180.png":
 		s.serveStatic(w, r)
 	default:
 		if seg := firstSegment(decoded); seg != "" {
