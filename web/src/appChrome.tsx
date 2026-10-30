@@ -85,6 +85,12 @@ export function AppHeader({
         borderBottom: `1px solid ${token.colorBorderSecondary}`,
       }}
     >
+      <svg width={20} height={20} viewBox="0 0 512 512" aria-hidden="true" style={{ flex: 'none', color: 'inherit' }}>
+        <path d="M 256 96 A 160 160 0 0 1 416 256" fill="none" stroke="currentColor" strokeWidth="30" strokeLinecap="round" />
+        <path d="M 256 416 A 160 160 0 0 1 96 256" fill="none" stroke="#1E40AF" strokeWidth="30" strokeLinecap="round" />
+        <path d="M 416 200 l 0 56 l -56 0" fill="none" stroke="currentColor" strokeWidth="26" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M 96 312 l 0 -56 l 56 0" fill="none" stroke="#1E40AF" strokeWidth="26" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
       <Text strong style={{ fontSize: 17 }}>
         {title}
       </Text>
